@@ -715,3 +715,112 @@ def open_associa_window(root, global_config):
     parse_emails_from_text()
     refresh_email_list_from_state()
     refresh_mapping_tree()
+
+
+def create_frame_associa(root, global_config):
+    """Frame persistente per associare testXX agli alunni senza rinominare il server."""
+    frame = tk.Frame(root, bg="#eef6ff")
+    associations = dict(global_config.get("student_associations", {}))
+    roster = []
+
+    tk.Label(frame, text="Associa cartelle di test agli alunni", bg="#eef6ff",
+             font=("Segoe UI", 13, "bold")).grid(row=0, column=0, columnspan=3,
+                                                      sticky="w", padx=12, pady=(12, 2))
+    tk.Label(frame, text=("Le associazioni sono salvate nella verifica e non rinominano né modificano "
+                          "le cartelle del server. Inserisci un alunno o un'email per riga."),
+             bg="#eef6ff", fg="#475569", wraplength=1050, justify="left").grid(
+        row=1, column=0, columnspan=3, sticky="w", padx=12, pady=(0, 10)
+    )
+
+    tk.Label(frame, text="Elenco alunni / email:", bg="#eef6ff").grid(
+        row=2, column=0, sticky="nw", padx=12, pady=4
+    )
+    roster_text = tk.Text(frame, height=4, width=55)
+    roster_text.grid(row=2, column=1, sticky="ew", padx=6, pady=4)
+
+    tree = ttk.Treeview(frame, columns=("test", "student"), show="headings", height=18)
+    tree.heading("test", text="Cartella test")
+    tree.heading("student", text="Alunno associato")
+    tree.column("test", width=180, anchor="w")
+    tree.column("student", width=360, anchor="w")
+    tree.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=12, pady=6)
+
+    roster_list = tk.Listbox(frame, height=18)
+    roster_list.grid(row=3, column=2, sticky="nsew", padx=(6, 12), pady=6)
+
+    def available_tests():
+        remote = global_config["remote_directory"].get().strip()
+        return [name for name, path in data_handler._iter_test_folders(remote) if os.path.isdir(path)]
+
+    def refresh():
+        nonlocal roster
+        tree.delete(*tree.get_children())
+        for test in available_tests():
+            tree.insert("", "end", iid=test, values=(test, associations.get(test, "—")))
+        roster_list.delete(0, "end")
+        used = set(associations.values())
+        for item in roster:
+            if item not in used:
+                roster_list.insert("end", item)
+
+    def update_roster():
+        nonlocal roster
+        roster = [line.strip() for line in roster_text.get("1.0", "end-1c").splitlines() if line.strip()]
+        refresh()
+
+    tk.Button(frame, text="Aggiorna elenco alunni", command=update_roster).grid(
+        row=2, column=2, sticky="nw", padx=(6, 12), pady=4
+    )
+
+    def associate_selected():
+        selected = tree.selection()
+        choice = roster_list.curselection()
+        if not selected or not choice:
+            messagebox.showwarning("Associa", "Seleziona una cartella test e un alunno.")
+            return
+        associations[selected[0]] = roster_list.get(choice[0])
+        refresh()
+
+    def associate_in_order():
+        free_tests = [test for test in available_tests() if test not in associations]
+        free_students = [item for item in roster if item not in associations.values()]
+        for test, student in zip(free_tests, free_students):
+            associations[test] = student
+        refresh()
+
+    def remove_selected():
+        selected = tree.selection()
+        if selected:
+            associations.pop(selected[0], None)
+            refresh()
+
+    def save_associations():
+        local = global_config["local_directory"].get().strip()
+        if not local:
+            messagebox.showwarning("Associa", "Crea o carica prima una verifica locale.")
+            return
+        try:
+            from project_manager import VerificationProject
+            VerificationProject(local).save(student_associations=associations)
+            global_config["student_associations"] = dict(associations)
+            refresh_live = global_config.get("refresh_live")
+            if callable(refresh_live):
+                refresh_live()
+            messagebox.showinfo("Associa", f"Salvate {len(associations)} associazioni.")
+        except Exception as exc:
+            messagebox.showerror("Associa", str(exc))
+
+    controls = tk.Frame(frame, bg="#eef6ff")
+    controls.grid(row=4, column=0, columnspan=3, sticky="w", padx=12, pady=(2, 8))
+    tk.Button(controls, text="Associa selezionati", command=associate_selected).pack(side="left", padx=6)
+    tk.Button(controls, text="Associa in ordine", command=associate_in_order).pack(side="left", padx=6)
+    tk.Button(controls, text="Rimuovi associazione", command=remove_selected).pack(side="left", padx=6)
+    tk.Button(controls, text="Salva associazioni", command=save_associations,
+              bg="#bbf7d0", font=("Segoe UI", 9, "bold")).pack(side="left", padx=6)
+
+    frame.columnconfigure(1, weight=1)
+    frame.columnconfigure(2, weight=1)
+    frame.rowconfigure(3, weight=1)
+    global_config["refresh_associa"] = refresh
+    refresh()
+    return frame

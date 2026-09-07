@@ -6,12 +6,12 @@ from tkinter import ttk
 class StudentCard(tk.Frame):
     """Riga compatta della dashboard Live, con allarme per forti incrementi."""
 
-    ROW_HEIGHT = 50
+    ROW_HEIGHT = 62
     CARD_WIDTH = 500
     NORMAL_BG = "#ffffff"
     ALERT_COLORS = ("#fff1f2", "#fecdd3")
 
-    def __init__(self, parent, student_name, session_manager, row, col=0):
+    def __init__(self, parent, student_name, session_manager, row, col=0, display_name=None):
         super().__init__(parent, bg=self.NORMAL_BG, width=self.CARD_WIDTH, height=self.ROW_HEIGHT,
                          highlightbackground="#cbd5e1", highlightthickness=1)
         self.student_name = student_name
@@ -27,9 +27,12 @@ class StudentCard(tk.Frame):
         # La colonna della sparkline ha spazio riservato: non può scomparire
         # quando la card mantiene una larghezza fissa.
         self.columnconfigure(3, minsize=110, weight=0)
-        self.name_label = tk.Label(self, text=student_name, bg=self.NORMAL_BG, anchor="w",
-                                   font=("Segoe UI", 10, "bold"), width=8)
-        self.name_label.grid(row=0, column=0, rowspan=2, sticky="w", padx=(12, 8))
+        self.test_label = tk.Label(self, text=student_name, bg=self.NORMAL_BG, anchor="w",
+                                   fg="#475569", font=("Segoe UI", 8, "bold"), width=13)
+        self.test_label.grid(row=0, column=0, sticky="sw", padx=(12, 8))
+        self.name_label = tk.Label(self, text=display_name or student_name, bg=self.NORMAL_BG, anchor="w",
+                                   font=("Segoe UI", 10, "bold"), width=13)
+        self.name_label.grid(row=1, column=0, sticky="nw", padx=(12, 8))
 
         self.lines_label = tk.Label(self, bg=self.NORMAL_BG, anchor="w", width=9,
                                     font=("Segoe UI", 10, "bold"))
@@ -38,8 +41,8 @@ class StudentCard(tk.Frame):
                                     font=("Segoe UI", 9))
         self.delta_label.grid(row=1, column=1, sticky="nw", padx=8)
 
-        self.time_label = tk.Label(self, bg=self.NORMAL_BG, fg="#475569", anchor="w", width=12,
-                                   font=("Segoe UI", 9))
+        self.time_label = tk.Label(self, bg=self.NORMAL_BG, fg="#475569", anchor="w", width=15,
+                                   font=("Segoe UI", 8))
         self.time_label.grid(row=0, column=2, rowspan=2, sticky="w", padx=8)
 
         # Con le card a larghezza fissa il valore Tk predefinito (molto largo)
@@ -55,7 +58,7 @@ class StudentCard(tk.Frame):
         self.actions.grid(row=0, column=4, rowspan=2, padx=(3, 6), pady=5, sticky="e")
         self.dismiss_button = ttk.Button(self.actions, text="Chiudi alert", command=self.reset_alert)
         self._background_widgets = (
-            self, self.name_label, self.lines_label, self.delta_label,
+            self, self.test_label, self.name_label, self.lines_label, self.delta_label,
             self.time_label, self.sparkline, self.actions,
         )
         self.update_card()
@@ -90,7 +93,7 @@ class StudentCard(tk.Frame):
         self.delta_label.config(text=delta_text, fg=delta_color)
         try:
             timestamp = dt.datetime.fromisoformat(last["timestamp"])
-            self.time_label.config(text=f"Ultima modifica\n{timestamp:%d/%m/%Y  %H:%M:%S}")
+            self.time_label.config(text=f"Aggiornato\n{timestamp:%d/%m/%Y %H:%M}")
         except Exception:
             self.time_label.config(text="Ultimo aggiornamento disponibile")
         self.name_label.config(fg="#b91c1c" if active_alert else "#0f172a")

@@ -35,32 +35,12 @@ def create_frame_live(root, global_config):
     )
     entry_threshold.grid(row=0, column=3, padx=5, pady=5, sticky='w')
 
-    # === Checkbutton: Conta righe + Auto refresh === #
-    count_lines_var = tk.BooleanVar(value=False)
-    auto_refresh_var = tk.BooleanVar(value=True)
-
-    chk_count_lines = tk.Checkbutton(
-        frame,
-        text='Conta righe',
-        variable=count_lines_var,
-        bg='white',
-    )
-    chk_count_lines.grid(row=0, column=5, padx=5, pady=5, sticky='w')
-
-    chk_auto_refresh = tk.Checkbutton(
-        frame,
-        text='Aggiornamento automatico',
-        variable=auto_refresh_var,
-        bg='white',
-    )
-    chk_auto_refresh.grid(row=0, column=6, padx=5, pady=5, sticky='w')
-
     # === Pulsanti controllo === #
     btn_scan = tk.Button(frame, text='Scan', width=15)
     btn_scan.grid(row=0, column=4, padx=5, pady=5)
 
     btn_clear = tk.Button(frame, text='Pulisci Dashboard', width=15)
-    btn_clear.grid(row=0, column=7, padx=5, pady=5)
+    btn_clear.grid(row=0, column=5, padx=5, pady=5)
 
     # === Dashboard Area con Scrollbar === #
     # Contenitore esterno per la scorrimento
@@ -170,7 +150,7 @@ def create_frame_live(root, global_config):
             header.grid_propagate(False)
             header.columnconfigure(3, weight=1)
             for header_column, text, width in (
-                (0, "Studente", 12), (1, "Righe", 12),
+                (0, "Test / alunno", 15), (1, "Righe", 12),
                 (2, "Aggiornamento", 17), (3, "Andamento", 8), (4, "", 8),
             ):
                 tk.Label(header, text=text, bg="#e2e8f0", fg="#334155", anchor="w",
@@ -184,7 +164,11 @@ def create_frame_live(root, global_config):
         for index, (nome_dir, _num_file, _num_righe, _files, _ultima_mod, _age_str) in enumerate(risultati):
             column = index % columns
             row = index // columns + 1
-            cards[nome_dir] = StudentCard(dashboard_container, nome_dir, session_manager, row, column)
+            display_name = global_config.get("student_associations", {}).get(nome_dir, nome_dir)
+            if "@" in display_name:
+                display_name = display_name.split("@", 1)[0]
+            cards[nome_dir] = StudentCard(dashboard_container, nome_dir, session_manager, row, column,
+                                          display_name=display_name)
         dashboard_container.update_idletasks()
         canvas.configure(scrollregion=canvas.bbox("all"))
 
@@ -247,7 +231,7 @@ def create_frame_live(root, global_config):
         risultati = scan_remote_directory(
             path,
             estensioni,
-            count_lines=count_lines_var.get(),
+            count_lines=True,
         )
 
         if session_manager and risultati:
@@ -272,37 +256,33 @@ def create_frame_live(root, global_config):
         if not risultati:
             lbl_esito.config(text="Nessun dato trovato nella directory.", fg="orange")
             return
-        last_results = risultati
+        associations = global_config.get("student_associations", {})
+        # Le cartelle non associate continuano a essere scansionate, salvate
+        # nello storico e raccolte localmente; non appesantiscono la dashboard.
+        last_results = [result for result in risultati if associations.get(result[0])]
+        if not last_results:
+            lbl_esito.config(text="Associa gli alunni per visualizzare le card Live.", fg="orange")
         render_dashboard(last_results)
         
-        if auto_refresh_var.get():
-            if auto_job_id is not None:
-                try:
-                    frame.after_cancel(auto_job_id)
-                except Exception:
-                    pass
-            auto_job_id = frame.after(SCAN_INTERVAL, aggiorna_dashboard)
-        else:
-            auto_job_id = None
-
-    def on_toggle_auto():
-        nonlocal auto_job_id
-        if auto_refresh_var.get():
-            aggiorna_dashboard()
-        else:
-            if auto_job_id is not None:
-                try:
-                    frame.after_cancel(auto_job_id)
-                except Exception:
-                    pass
-                auto_job_id = None
-
-    chk_auto_refresh.config(command=on_toggle_auto)
-    btn_scan.config(command=aggiorna_dashboard)
-    btn_clear.config(command=lambda: tree.delete(*tree.get_children()) if 'tree' in locals() else None)
-
-    if auto_refresh_var.get():
+        if auto_job_id is not None:
+            try:
+                frame.after_cancel(auto_job_id)
+            except Exception:
+                pass
         auto_job_id = frame.after(SCAN_INTERVAL, aggiorna_dashboard)
+
+    def clear_dashboard():
+        nonlocal last_results
+        last_results = []
+        cards.clear()
+        for widget in dashboard_container.winfo_children():
+            widget.destroy()
+        canvas.configure(scrollregion=canvas.bbox("all"))
+
+    btn_scan.config(command=aggiorna_dashboard)
+    btn_clear.config(command=clear_dashboard)
+
+    auto_job_id = frame.after(SCAN_INTERVAL, aggiorna_dashboard)
 
     global_config["refresh_live"] = aggiorna_dashboard
 

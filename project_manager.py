@@ -55,7 +55,8 @@ class VerificationProject:
 
     @classmethod
     def create(cls, local_directory: str, name: str, remote_directory: str = "",
-               extensions: str = ".cpp", alert_threshold: int = 30):
+               extensions: str = ".cpp", alert_threshold: int = 30,
+               class_name: str = ""):
         root = Path(local_directory).expanduser().resolve()
         root.mkdir(parents=True, exist_ok=True)
         for folder in (SYSTEM_DIR, HISTORY_DIR, RECOVERY_DIR, "00_MixOutput", "00_Pdf"):
@@ -63,6 +64,7 @@ class VerificationProject:
         now = dt.datetime.now().astimezone().isoformat()
         manifest = {
             "schema_version": 1, "name": name.strip() or "Verifica",
+            "class_name": class_name.strip(), "student_associations": {},
             "created_at": now, "updated_at": now, "status": "active",
             "remote_directory": str(Path(remote_directory).resolve()) if remote_directory else "",
             "file_extensions": extensions, "alert_threshold": int(alert_threshold),
@@ -74,12 +76,16 @@ class VerificationProject:
         return project
 
     @classmethod
-    def create_in(cls, parent: str, name: str, **kwargs):
+    def create_in(cls, parent: str, name: str, class_name: str = "", **kwargs):
         parent_path = Path(parent).expanduser().resolve()
         if (parent_path / PROJECT_FILE).is_file():
             raise ValueError("Non puoi creare una verifica dentro un'altra Dir Locale SMX")
         stamp = dt.datetime.now().strftime("%Y%m%d_%H-%M-%S")
-        return cls.create(str(parent_path / f"{stamp}_{_safe_name(name)}"), name, **kwargs)
+        parts = [stamp]
+        if class_name.strip():
+            parts.append(_safe_name(class_name))
+        parts.append(_safe_name(name))
+        return cls.create(str(parent_path / "_".join(parts)), name, class_name=class_name, **kwargs)
 
     def save(self, **changes):
         self.manifest.update(changes)
@@ -120,7 +126,8 @@ class VerificationProject:
             if session_path.suffix.lower() != SESSION_EXTENSION.lower():
                 session_path = session_path.with_suffix(SESSION_EXTENSION)
         else:
-            session_path = self.root / SYSTEM_DIR / f"{_safe_name(self.manifest['name'])}{SESSION_EXTENSION}"
+            # Il nome della directory è già timestamp_Classe_NomeVerifica.
+            session_path = self.root / SYSTEM_DIR / f"{self.root.name}{SESSION_EXTENSION}"
         session_path.parent.mkdir(parents=True, exist_ok=True)
         self.log_event("session_saved", {"path": str(session_path)})
         temporary = session_path.with_suffix(session_path.suffix + ".tmp")

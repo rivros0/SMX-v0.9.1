@@ -12,7 +12,7 @@ for env_name, relative in (("TCL_LIBRARY", ("tcl", "tcl8.6")), ("TK_LIBRARY", ("
         os.environ[env_name] = candidate
 
 import data_handler
-from frame_associa import open_associa_window
+from frame_associa import create_frame_associa
 from frame_live import create_frame_live
 from frame_preparazione import create_frame_preparazione
 from project_manager import PROJECT_FILE, SESSION_EXTENSION, VerificationProject
@@ -64,11 +64,12 @@ class SMXApplication:
         self.config = {
             "remote_directory": tk.StringVar(value="W:\\"), "local_directory": tk.StringVar(),
             "file_extension": tk.StringVar(value=".cpp"),
-            "verifica_name": tk.StringVar(), "intro_text": tk.StringVar(),
+            "verifica_name": tk.StringVar(), "class_name": tk.StringVar(), "intro_text": tk.StringVar(),
             "alert_threshold": tk.IntVar(value=30), "current_mode": tk.StringVar(value="Live"),
         }
         # Alias temporaneo: i frame storici vengono migrati senza rompere plugin locali.
         self.config["selected_directory"] = self.config["local_directory"]
+        self.config["student_associations"] = {}
         self._load_state()
         self._build_menu()
         self._build_header()
@@ -91,7 +92,7 @@ class SMXApplication:
         file_menu.add_command(label="Salva con nome…", command=self.save_session_as)
         file_menu.add_separator()
         file_menu.add_command(label="Crea archivio completo…", command=self.archive_project)
-        file_menu.add_command(label="Associa alunni alle cartelle…", command=self.open_association)
+        file_menu.add_command(label="Associa alunni alle cartelle…", command=lambda: self.show_mode("Associa"))
         file_menu.add_separator()
         file_menu.add_command(label="Carica configurazione...", command=self.load_configuration)
         file_menu.add_command(label="Salva configurazione...", command=self.save_configuration)
@@ -103,7 +104,9 @@ class SMXApplication:
     def _build_header(self):
         bar = tk.Frame(self.root, bg="#eeeeee")
         bar.pack(fill="x")
-        tk.Label(bar, text="Verifica:", bg="#eeeeee").pack(side="left", padx=(8, 3), pady=6)
+        tk.Label(bar, text="Classe:", bg="#eeeeee").pack(side="left", padx=(8, 3), pady=6)
+        tk.Entry(bar, textvariable=self.config["class_name"], width=12).pack(side="left")
+        tk.Label(bar, text="Verifica:", bg="#eeeeee").pack(side="left", padx=(12, 3))
         tk.Entry(bar, textvariable=self.config["verifica_name"], width=25).pack(side="left")
         tk.Label(bar, text="Dir Remota:", bg="#eeeeee").pack(side="left", padx=(16, 3))
         tk.Label(bar, textvariable=self.config["remote_directory"], bg="#eeeeee", fg="#075985",
@@ -124,7 +127,7 @@ class SMXApplication:
         modes.pack(fill="x")
         tk.Label(modes, text="Modalità:", bg="#e8eef2").pack(side="left", padx=(8, 6), pady=5)
         self.mode_buttons = {}
-        for mode in ("Preparazione", "Live", "Correzione", "Export", "Domini - BETA"):
+        for mode in ("Preparazione", "Associa", "Live", "Correzione", "Export", "Domini"):
             button = tk.Button(modes, text=mode, command=lambda value=mode: self.show_mode(value),
                                relief="flat", padx=14, pady=4)
             button.pack(side="left", padx=2, pady=3)
@@ -135,6 +138,7 @@ class SMXApplication:
             frame.destroy()
         self.frames = {
             "Preparazione": create_frame_preparazione(self.content, self.config),
+            "Associa": create_frame_associa(self.content, self.config),
             "Live": create_frame_live(self.content, self.config),
             "Correzione": create_frame_correzione(self.content, self.config),
             "Export": create_frame_export(self.content, self.config),
@@ -167,6 +171,10 @@ class SMXApplication:
                                       initialvalue=self.config["verifica_name"].get(), parent=self.root)
         if not name:
             return
+        class_name = simpledialog.askstring("Nuova verifica", "Classe:",
+                                            initialvalue=self.config["class_name"].get(), parent=self.root)
+        if not class_name:
+            return
         extensions = self.choose_extensions_for_new_project()
         if extensions is None:
             return
@@ -174,12 +182,10 @@ class SMXApplication:
             title="Dir Remota (Annulla per configurarla dopo)",
             initialdir=self.config["remote_directory"].get().strip() or "W:\\",
         )
-        project = VerificationProject.create_in(parent, name, remote_directory=remote,
+        project = VerificationProject.create_in(parent, name, class_name=class_name, remote_directory=remote,
                                                 extensions=extensions,
                                                 alert_threshold=self.config["alert_threshold"].get())
         self._apply_project(project)
-        if remote and messagebox.askyesno("Raccolta iniziale", "Copiare ora le cartelle test nella Dir Locale?"):
-            project.copy_from_remote()
         project.save_session_file()
         # Una nuova verifica parte sempre dalla Preparazione: qui viene eseguito
         # subito il controllo in sola lettura delle cartelle remote.
@@ -321,6 +327,8 @@ class SMXApplication:
         self.config["local_directory"].set(str(project.root))
         self.config["remote_directory"].set(manifest.get("remote_directory", ""))
         self.config["verifica_name"].set(manifest.get("name", "Verifica"))
+        self.config["class_name"].set(manifest.get("class_name", ""))
+        self.config["student_associations"] = dict(manifest.get("student_associations", {}))
         self.config["file_extension"].set(manifest.get("file_extensions", ".cpp"))
         self.config["alert_threshold"].set(manifest.get("alert_threshold", 30))
         self.config["intro_text"].set(manifest.get("intro_text", ""))
@@ -366,14 +374,7 @@ class SMXApplication:
                 messagebox.showerror("Archivio", str(exc))
 
     def open_association(self):
-        if not self.config["local_directory"].get().strip():
-            messagebox.showwarning(
-                "Associa alunni",
-                "Crea o carica prima una verifica: le associazioni vengono applicate "
-                "solo alle cartelle della Dir Locale.",
-            )
-            return
-        open_associa_window(self.root, self.config)
+        self.show_mode("Associa")
 
     def show_startup_dialog(self):
         dialog = tk.Toplevel(self.root)
@@ -461,6 +462,8 @@ class SMXApplication:
             "selected_directory": self.config["local_directory"].get(),
             "file_extension": self.config["file_extension"].get(),
             "verifica_name": self.config["verifica_name"].get(),
+            "class_name": self.config["class_name"].get(),
+            "student_associations": self.config.get("student_associations", {}),
             "alert_threshold": self.config["alert_threshold"].get(),
             "current_mode": self.config["current_mode"].get(),
             "intro_text": self.config["intro_text"].get(),
@@ -483,6 +486,8 @@ class SMXApplication:
             self.config["local_directory"].set(data.get("local_directory") or data.get("selected_directory", ""))
             self.config["file_extension"].set(data.get("file_extension", ".cpp"))
             self.config["verifica_name"].set(data.get("verifica_name", ""))
+            self.config["class_name"].set(data.get("class_name", ""))
+            self.config["student_associations"] = dict(data.get("student_associations", {}))
             self.config["intro_text"].set(data.get("intro_text", ""))
             try:
                 self.config["alert_threshold"].set(int(data.get("alert_threshold", 30)))
@@ -506,6 +511,8 @@ class SMXApplication:
             return
         VerificationProject(local).save(
             name=self.config["verifica_name"].get(),
+            class_name=self.config["class_name"].get(),
+            student_associations=self.config.get("student_associations", {}),
             remote_directory=self.config["remote_directory"].get(),
             file_extensions=self.config["file_extension"].get(),
             alert_threshold=self.config["alert_threshold"].get(),
@@ -536,7 +543,7 @@ class SMXApplication:
 
     def _load_state(self):
         state = self._state_data()
-        for key in ("remote_directory", "local_directory", "file_extension", "verifica_name", "intro_text", "current_mode"):
+        for key in ("remote_directory", "local_directory", "file_extension", "verifica_name", "class_name", "intro_text", "current_mode"):
             # Un vecchio stato può contenere una Dir Remota vuota: in quel caso
             # manteniamo il valore operativo predefinito W:\\.
             if key in state and (key != "remote_directory" or str(state[key]).strip()):
@@ -548,7 +555,7 @@ class SMXApplication:
         # persistenti dell'applicazione.
         persistent_keys = (
             "remote_directory", "local_directory", "file_extension",
-            "verifica_name", "intro_text", "alert_threshold", "current_mode",
+            "verifica_name", "class_name", "intro_text", "alert_threshold", "current_mode",
         )
         state = {key: self.config[key].get() for key in persistent_keys}
         state["last_local_directory"] = self.config["local_directory"].get()
