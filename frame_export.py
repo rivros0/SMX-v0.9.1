@@ -13,6 +13,7 @@
 # - massima leggibilità
 
 import os
+import re
 import tkinter as tk
 from tkinter import Scrollbar, messagebox
 
@@ -128,16 +129,19 @@ def create_frame_export(root, global_config):
 
     def _rename_individual_pdfs_with_verifica():
         """
-        Aggiunge il prefisso '<NomeVerifica>__' a tutti i PDF in 00_Pdf
-        che NON iniziano con '00' e non hanno già il prefisso.
+        Rinomina gli elaborati singoli con la convenzione:
+        Classe_NomeVerifica_testXX_alunno.pdf
+
+        L'alunno è la parte iniziale dell'email salvata nelle associazioni.
+        I file di MEGAmerge restano esclusi.
         """
         pdf_dir = _get_pdf_dir()
         verifica = _get_verifica_name_clean()
-        if not os.path.isdir(pdf_dir):
+        classe = _get_class_name_clean()
+        if not os.path.isdir(pdf_dir) or not verifica:
             return
 
-        if verifica == "":
-            return
+        associations = global_config.get("student_associations", {})
 
         try:
             names = sorted(os.listdir(pdf_dir))
@@ -147,37 +151,36 @@ def create_frame_export(root, global_config):
         i = 0
         while i < len(names):
             nm = names[i]
-            # escludo i '00' e i non-PDF
-            if nm.startswith("00") or not nm.lower().endswith(".pdf"):
+            # Escludo i PDF finali e i file non individuali.
+            if (nm.startswith("00") or nm.startswith("MEGAmerge_")
+                    or not nm.lower().endswith(".pdf")):
                 i = i + 1
                 continue
 
-            # se già prefissato, ignoro
-            prefix = verifica + "__"
-            if nm.startswith(prefix):
+            stem = os.path.splitext(nm)[0]
+            match = re.search(r"(?:^|__)test(0[1-9]|[12][0-9]|30)(?:_|$)", stem, re.IGNORECASE)
+            if not match:
+                i = i + 1
+                continue
+            test_folder = "test" + match.group(1)
+
+            student = str(associations.get(test_folder, "non_associato"))
+            if "@" in student:
+                student = student.split("@", 1)[0]
+            student = re.sub(r'[\\/:*?"<>|\s]+', "_", student).strip("_") or "non_associato"
+            parts = [part for part in (classe, verifica, test_folder, student) if part]
+            new_name = "_".join(parts) + ".pdf"
+            if nm == new_name:
                 i = i + 1
                 continue
 
             old_path = os.path.join(pdf_dir, nm)
-            new_name = prefix + nm
             new_path = os.path.join(pdf_dir, new_name)
 
-            # gestisce possibili collisioni
-            if os.path.exists(new_path):
-                base = os.path.splitext(new_name)[0]
-                ext = ".pdf"
-                counter = 2
-                candidate = base + "_" + str(counter) + ext
-                candidate_path = os.path.join(pdf_dir, candidate)
-                while os.path.exists(candidate_path):
-                    counter = counter + 1
-                    candidate = base + "_" + str(counter) + ext
-                    candidate_path = os.path.join(pdf_dir, candidate)
-                new_path = candidate_path
-                new_name = os.path.basename(new_path)
-
             try:
-                os.rename(old_path, new_path)
+                # Il PDF appena generato sostituisce la precedente versione
+                # dello stesso elaborato, senza creare duplicati nel merge.
+                os.replace(old_path, new_path)
             except Exception:
                 # se il rename fallisce, proseguo senza interrompere il flusso
                 pass
