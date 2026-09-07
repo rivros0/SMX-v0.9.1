@@ -132,6 +132,7 @@ def create_frame_correzione(root, global_config):
         frame_correzione,
         columns=(
             "subdirectory",
+            "student",
             "num_folders",
             "num_files",
             "num_extension_files",
@@ -143,6 +144,7 @@ def create_frame_correzione(root, global_config):
     tree.grid(row=3, column=0, columnspan=4, sticky="nsew", padx=10, pady=10)
 
     tree.heading("subdirectory", text="Subdirectory")
+    tree.heading("student", text="Alunno")
     tree.heading("num_folders", text="Cartelle")
     tree.heading("num_files", text="File")
     tree.heading("num_extension_files", text="File con estensione")
@@ -150,6 +152,7 @@ def create_frame_correzione(root, global_config):
     tree.heading("mix_file", text="Mix file (clic per copiare)")
 
     tree.column("subdirectory", width=100, anchor="w")
+    tree.column("student", width=230, anchor="w")
     tree.column("num_folders", width=80, anchor="center")
     tree.column("num_files", width=80, anchor="center")
     tree.column("num_extension_files", width=140, anchor="center")
@@ -329,22 +332,21 @@ def create_frame_correzione(root, global_config):
             report_text.see("end")
             return
 
-        # Popola log e tabella con la funzione esistente
+        # Popola il log con la funzione esistente.
         utils.update_directory_listing(path, entry_extension, report_text)
-        utils.update_subdirectories_list(path, tree, entry_extension)
-
-        # --- FILTRO post-popolamento: rimuove le subdirectory che iniziano con '00' ---
-        # Nota: non modifichiamo utils; filtriamo qui gli item già inseriti nella treeview.
-        all_items = tree.get_children()
-        idx = 0
-        while idx < len(all_items):
-            item_id = all_items[idx]
-            values = tree.item(item_id, "values")
-            if values and len(values) > 0:
-                subdir_name = str(values[0]).strip()
-                if subdir_name.startswith("00"):
-                    tree.delete(item_id)
-            idx = idx + 1
+        associations = global_config.get("student_associations", {})
+        subdirectories = [
+            name for name in os.listdir(path)
+            if os.path.isdir(os.path.join(path, name)) and data_handler.is_local_student_folder(name)
+        ]
+        for subdir_name in sorted(subdirectories):
+            test_key = subdir_name.rsplit("__", 1)[-1]
+            student = associations.get(test_key, "—")
+            stats = utils.count_directory_content(os.path.join(path, subdir_name), entry_extension)
+            tree.insert("", "end", values=(
+                subdir_name, student, stats[0], stats[1], stats[2],
+                ", ".join(stats[3]), "",
+            ))
 
 
     def on_selected_directory_change(*_args):
@@ -372,7 +374,16 @@ def create_frame_correzione(root, global_config):
           - aggiorna la variabile globale intro_text, così che
             possa essere salvata nel file di configurazione JSON.
         """
+        # La raccolta locale può essere avvenuta mentre questa frame era aperta:
+        # rileggiamo sempre la Dir Locale prima di comporre i mix.
+        refresh_current_directory_state()
         intro_corrente = sync_intro_text().strip()
+
+        if not tree.get_children():
+            report_text.delete("1.0", "end")
+            report_text.insert("end", "Nessuna cartella test nella copia locale. Usa prima 'Raccogli copia locale' nella frame Live.\n")
+            report_text.see("end")
+            return
 
         business_logic.mix_files(
             global_config["selected_directory"],  # StringVar, gestita da business_logic._resolve_base_directory

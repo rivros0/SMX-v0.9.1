@@ -76,6 +76,7 @@ class SMXApplication:
         self.content = tk.Frame(root)
         self.content.pack(fill="both", expand=True)
         self.frames = {}
+        self.config["show_mode"] = self.show_mode
         self._rebuild_frames()
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(100, self.show_startup_dialog)

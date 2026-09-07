@@ -78,6 +78,16 @@ def create_frame_export(root, global_config):
             idx = idx + 1
         return vname
 
+    def _get_class_name_clean():
+        try:
+            class_name = global_config["class_name"].get()
+        except Exception:
+            class_name = ""
+        class_name = str(class_name or "").strip()
+        for char in ['\\', '/', ':', '*', '?', '"', '<', '>', '|', ' ']:
+            class_name = class_name.replace(char, "_")
+        return class_name.strip("_")
+
     def _list_mix_files_filtered():
         """
         Elenco di file presenti in 00_MixOutput, esclusi quelli che iniziano con '00'.
@@ -219,9 +229,17 @@ def create_frame_export(root, global_config):
             messagebox.showwarning("Attenzione", "Seleziona prima una directory di lavoro (Preparazione/Correzione).")
             return
 
+        log_text.insert("end", "Verifica dei file mix prima della creazione PDF...\n")
+        business_logic.create_missing_mix_files(
+            base_dir,
+            global_config["file_extension"].get(),
+            global_config["intro_text"].get(),
+            log_text,
+        )
         business_logic.create_individual_pdfs(base_dir, log_text)
         _rename_individual_pdfs_with_verifica()
         update_file_list()
+        log_text.see("end")
 
     def do_megamerge():
         """
@@ -234,6 +252,14 @@ def create_frame_export(root, global_config):
         if not base_dir:
             messagebox.showwarning("Attenzione", "Seleziona prima una directory di lavoro (Preparazione/Correzione).")
             return
+
+        log_text.insert("end", "Verifica dei file mix prima del MEGAmerge...\n")
+        business_logic.create_missing_mix_files(
+            base_dir,
+            global_config["file_extension"].get(),
+            global_config["intro_text"].get(),
+            log_text,
+        )
 
         pdf_dir = _get_pdf_dir()
         if not os.path.isdir(pdf_dir):
@@ -288,12 +314,15 @@ def create_frame_export(root, global_config):
 
             idx = idx + 1
 
-        # salva con nome finale che include NomeVerifica
+        # Nome chiaro e portabile per l'invio/stampa finale.
         verifica = _get_verifica_name_clean()
-        if verifica == "":
-            final_name = "00_MEGAmerged_output_final.pdf"
-        else:
-            final_name = "00_MEGAmerged_output_final__" + verifica + ".pdf"
+        classe = _get_class_name_clean()
+        name_parts = ["MEGAmerge"]
+        if classe:
+            name_parts.append(classe)
+        if verifica:
+            name_parts.append(verifica)
+        final_name = "_".join(name_parts) + ".pdf"
 
         final_path = os.path.join(pdf_dir, final_name)
         try:

@@ -1,6 +1,7 @@
 import os
 import io
 import textwrap
+import re
 from tkinter import messagebox
 
 from reportlab.lib.pagesizes import A4
@@ -16,6 +17,26 @@ from PyPDF2 import PdfReader, PdfWriter
 # =============================================================================
 
 FLAG_END_INTRO = "###__END_INTRO__###"
+
+
+def _student_associations(base_directory):
+    """Legge le associazioni salvate nel progetto, senza rendere obbligatorio il manifest."""
+    try:
+        from project_manager import VerificationProject
+        return dict(VerificationProject(base_directory).manifest.get("student_associations", {}))
+    except Exception:
+        return {}
+
+
+def _test_key_from_folder(folder_name):
+    match = re.search(r"(?:^|__)test(0[1-9]|[12][0-9]|30)$", str(folder_name), re.IGNORECASE)
+    return "test" + match.group(1) if match else str(folder_name)
+
+
+def student_header(base_directory, folder_name):
+    """Etichetta completa per ogni elaborato: cartella test e email dell'alunno."""
+    student = _student_associations(base_directory).get(_test_key_from_folder(folder_name), "")
+    return str(folder_name) + (" — " + str(student) if student else "")
 
 
 # =============================================================================
@@ -127,7 +148,7 @@ def wrap_preserve_indent(text, width):
     return "\n".join(wrapped_lines)
 
 
-def estrai_contenuto_per_pdf_da_mix(mix_text):
+def estrai_contenuto_per_pdf_da_mix(mix_text, folder_name=""):
     """
     Restituisce la parte di testo di un file di mix che deve essere
     inclusa nel PDF finale.
@@ -139,11 +160,9 @@ def estrai_contenuto_per_pdf_da_mix(mix_text):
       - se la flag non è presente, restituisce il testo originale
         (retrocompatibilità con vecchi file di mix).
 
-    In questo modo l'introduzione (intro di correzione, eventuali
-    commenti sui dominii, note, ecc.) può essere scritta prima della
-    flag e NON verrà inclusa nel PDF, mentre il corpo conterrà il nome
-    della subdirectory (es. test01) e tutti i file della verifica, che
-    verranno preservati nel PDF.
+    L'eventuale riga iniziale con il nome della cartella viene rimossa
+    dal PDF: la stessa informazione, insieme all'email, è già presente
+    nell'intestazione di ogni pagina.
     """
     if mix_text is None:
         return ""
@@ -177,6 +196,17 @@ def estrai_contenuto_per_pdf_da_mix(mix_text):
     while index < len(lines):
         body_lines.append(lines[index])
         index = index + 1
+
+    # Il file mix mantiene facoltativamente il nome della subdirectory,
+    # utile come metadato di testo. Nel PDF evitiamo però di stamparlo
+    # due volte perché compare già nell'intestazione.
+    if folder_name:
+        while body_lines and body_lines[0].strip() == "":
+            body_lines.pop(0)
+        if body_lines and body_lines[0].strip() == str(folder_name).strip():
+            body_lines.pop(0)
+            while body_lines and body_lines[0].strip() == "":
+                body_lines.pop(0)
 
     body_text = separator.join(body_lines)
 
@@ -284,7 +314,7 @@ def mix_files(lbl_or_var_directory,
         )
         return
 
-        report_text.insert("end", "Inizio creazione dei file di mix...\n")
+    report_text.insert("end", "Inizio creazione dei file di mix...\n")
 
     # Azzeriamo prima la colonna "mix_file" per tutte le righe
     items = tree.get_children()
@@ -475,6 +505,64 @@ def create_mix_file(base_directory,
     except Exception as exc:
         message = "Errore durante il mix per " + subdir + ": " + str(exc) + "\n"
         return message, None
+
+
+def create_missing_mix_files(base_directory, extensions_text, prompt_string, report_text=None):
+    """Crea solo i mix mancanti nella copia locale, senza sovrascrivere nulla."""
+    base_dir = _extract_directory(base_directory)
+    if not base_dir or not os.path.isdir(base_dir):
+        if report_text is not None:
+            report_text.insert("end", "Impossibile creare i mix: Dir Locale non valida.\n")
+        return None
+
+    extensions = _parse_extensions(extensions_text)
+    if not extensions:
+        if report_text is not None:
+            report_text.insert("end", "Impossibile creare i mix: specifica almeno un'estensione.\n")
+        return None
+
+    output_directory = os.path.join(base_dir, "00_MixOutput")
+    try:
+        os.makedirs(output_directory, exist_ok=True)
+    except Exception as exc:
+        if report_text is not None:
+            report_text.insert("end", "Impossibile preparare 00_MixOutput: " + str(exc) + "\n")
+        return None
+
+    import data_handler
+    folders = []
+    try:
+        for name in sorted(os.listdir(base_dir)):
+            if os.path.isdir(os.path.join(base_dir, name)) and data_handler.is_local_student_folder(name):
+                folders.append(name)
+    except Exception as exc:
+        if report_text is not None:
+            report_text.insert("end", "Impossibile leggere la copia locale: " + str(exc) + "\n")
+        return None
+
+    created = 0
+    skipped = 0
+    for folder in folders:
+        mix_path = os.path.join(output_directory, folder + "_mix.txt")
+        if os.path.exists(mix_path):
+            skipped += 1
+            continue
+        message, result_path = create_mix_file(
+            base_dir, folder, prompt_string, extensions, output_directory,
+            include_prompt=True, include_subdir=True,
+        )
+        if report_text is not None:
+            report_text.insert("end", message)
+        if result_path:
+            created += 1
+
+    if report_text is not None:
+        report_text.insert(
+            "end",
+            "Mix automatico: " + str(created) + " nuovi file creati, "
+            + str(skipped) + " file esistenti lasciati invariati.\n",
+        )
+    return created
 
 def _add_header_to_page(page, header_text):
     """
@@ -704,7 +792,7 @@ def create_individual_pdfs(base_directory, report_text):
             continue
 
         content = _normalize_text(content)
-        content_for_pdf = estrai_contenuto_per_pdf_da_mix(content)
+        content_for_pdf = estrai_contenuto_per_pdf_da_mix(content, base_name)
         wrapped = wrap_preserve_indent(content_for_pdf, max_char_width)
 
         pdf_name = os.path.splitext(file_name)[0] + ".pdf"
@@ -714,6 +802,18 @@ def create_individual_pdfs(base_directory, report_text):
             doc = SimpleDocTemplate(pdf_path, pagesize=A4)
             story = [Preformatted(wrapped, monospace_style)]
             doc.build(story)
+            # Anche i PDF creati dal testo mix ricevono un'intestazione
+            # costante su ogni pagina: cartella test + email completa.
+            header = student_header(base_dir, base_name)
+            reader = PdfReader(pdf_path)
+            writer = PdfWriter()
+            for page in reader.pages:
+                _add_header_to_page(page, header)
+                writer.add_page(page)
+            temporary_pdf = pdf_path + ".tmp"
+            with open(temporary_pdf, "wb") as output_stream:
+                writer.write(output_stream)
+            os.replace(temporary_pdf, pdf_path)
             created_count = created_count + 1
             report_text.insert("end", "Creato PDF da mix: " + pdf_name + "\n")
             report_text.see("end")
@@ -788,7 +888,7 @@ def create_individual_pdfs(base_directory, report_text):
                 p_index = 0
                 while p_index < len(reader.pages):
                     page = reader.pages[p_index]
-                    _add_header_to_page(page, entry_name)
+                    _add_header_to_page(page, student_header(base_dir, entry_name))
                     writer.add_page(page)
                     pages_found = pages_found + 1
                     p_index = p_index + 1

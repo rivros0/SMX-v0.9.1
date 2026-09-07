@@ -756,7 +756,10 @@ def create_frame_associa(root, global_config):
         nonlocal roster
         tree.delete(*tree.get_children())
         for test in available_tests():
-            tree.insert("", "end", iid=test, values=(test, associations.get(test, "—")))
+            student = associations.get(test, "—")
+            if "@" in student:
+                student = student.split("@", 1)[0]
+            tree.insert("", "end", iid=test, values=(test, student))
         roster_list.delete(0, "end")
         used = set(associations.values())
         for item in roster:
@@ -794,7 +797,7 @@ def create_frame_associa(root, global_config):
             associations.pop(selected[0], None)
             refresh()
 
-    def save_associations():
+    def save_associations(show_message=True):
         local = global_config["local_directory"].get().strip()
         if not local:
             messagebox.showwarning("Associa", "Crea o carica prima una verifica locale.")
@@ -806,9 +809,18 @@ def create_frame_associa(root, global_config):
             refresh_live = global_config.get("refresh_live")
             if callable(refresh_live):
                 refresh_live()
-            messagebox.showinfo("Associa", f"Salvate {len(associations)} associazioni.")
+            if show_message:
+                messagebox.showinfo("Associa", f"Salvate {len(associations)} associazioni.")
+            return True
         except Exception as exc:
             messagebox.showerror("Associa", str(exc))
+            return False
+
+    def start_live():
+        if save_associations(show_message=False):
+            show_mode = global_config.get("show_mode")
+            if callable(show_mode):
+                show_mode("Live")
 
     controls = tk.Frame(frame, bg="#eef6ff")
     controls.grid(row=4, column=0, columnspan=3, sticky="w", padx=12, pady=(2, 8))
@@ -817,6 +829,8 @@ def create_frame_associa(root, global_config):
     tk.Button(controls, text="Rimuovi associazione", command=remove_selected).pack(side="left", padx=6)
     tk.Button(controls, text="Salva associazioni", command=save_associations,
               bg="#bbf7d0", font=("Segoe UI", 9, "bold")).pack(side="left", padx=6)
+    tk.Button(controls, text="Avvia verifica", command=start_live,
+              bg="#86efac", font=("Segoe UI", 9, "bold")).pack(side="left", padx=14)
 
     frame.columnconfigure(1, weight=1)
     frame.columnconfigure(2, weight=1)

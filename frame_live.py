@@ -10,20 +10,27 @@ SCAN_INTERVAL = 30000  # 30 seconds
 
 def create_frame_live(root, global_config):
     frame = tk.Frame(root, bg='#046276')
+    monitoring_active = True
     
     # === Configurazione Scan === #
+    btn_monitoring = tk.Button(
+        frame, text='● Monitoraggio attivo', width=23,
+        bg='#bbf7d0', fg='#14532d', font=('Segoe UI', 9, 'bold'),
+    )
+    btn_monitoring.grid(row=0, column=0, padx=(10, 8), pady=5, sticky='w')
+
     lbl_ext = tk.Label(frame, text='Estensioni:', bg='white')
-    lbl_ext.grid(row=0, column=0, sticky='w', padx=5, pady=5)
+    lbl_ext.grid(row=0, column=1, sticky='w', padx=5, pady=5)
 
     entry_ext = tk.Entry(
         frame,
         width=30,
         textvariable=global_config['file_extension'],
     )
-    entry_ext.grid(row=0, column=1, padx=5, pady=5, sticky='w')
+    entry_ext.grid(row=0, column=2, padx=5, pady=5, sticky='w')
 
     lbl_threshold = tk.Label(frame, text='Soglia Alert:', bg='white')
-    lbl_threshold.grid(row=0, column=2, sticky='w', padx=5, pady=5)
+    lbl_threshold.grid(row=0, column=3, sticky='w', padx=5, pady=5)
 
     threshold_source = global_config.get('alert_threshold', 30)
     threshold_value = threshold_source.get() if hasattr(threshold_source, 'get') else threshold_source
@@ -33,14 +40,14 @@ def create_frame_live(root, global_config):
         width=10,
         textvariable=threshold_var,
     )
-    entry_threshold.grid(row=0, column=3, padx=5, pady=5, sticky='w')
+    entry_threshold.grid(row=0, column=4, padx=5, pady=5, sticky='w')
 
     # === Pulsanti controllo === #
     btn_scan = tk.Button(frame, text='Scan', width=15)
-    btn_scan.grid(row=0, column=4, padx=5, pady=5)
+    btn_scan.grid(row=0, column=5, padx=5, pady=5)
 
     btn_clear = tk.Button(frame, text='Pulisci Dashboard', width=15)
-    btn_clear.grid(row=0, column=5, padx=5, pady=5)
+    btn_clear.grid(row=0, column=6, padx=5, pady=5)
 
     # === Dashboard Area con Scrollbar === #
     # Contenitore esterno per la scorrimento
@@ -197,6 +204,10 @@ def create_frame_live(root, global_config):
             message = f"✅ Raccolte {len(copied)} cartelle test nella Dir Locale."
             lbl_esito.config(text=message, fg="green")
             log_to_ui(message)
+            for refresh_key in ("refresh_correzione", "refresh_export"):
+                refresh = global_config.get(refresh_key)
+                if callable(refresh):
+                    refresh()
         except Exception as exc:
             message = f"⚠️ Raccolta non riuscita: {exc}"
             lbl_esito.config(text=message, fg="red")
@@ -269,7 +280,10 @@ def create_frame_live(root, global_config):
                 frame.after_cancel(auto_job_id)
             except Exception:
                 pass
-        auto_job_id = frame.after(SCAN_INTERVAL, aggiorna_dashboard)
+        if monitoring_active:
+            auto_job_id = frame.after(SCAN_INTERVAL, aggiorna_dashboard)
+        else:
+            auto_job_id = None
 
     def clear_dashboard():
         nonlocal last_results
@@ -281,6 +295,25 @@ def create_frame_live(root, global_config):
 
     btn_scan.config(command=aggiorna_dashboard)
     btn_clear.config(command=clear_dashboard)
+
+    def toggle_monitoring():
+        nonlocal monitoring_active, auto_job_id
+        monitoring_active = not monitoring_active
+        if monitoring_active:
+            btn_monitoring.config(text='● Monitoraggio attivo', bg='#bbf7d0', fg='#14532d')
+            log_to_ui("Monitoraggio automatico attivato.")
+            aggiorna_dashboard()
+        else:
+            if auto_job_id is not None:
+                try:
+                    frame.after_cancel(auto_job_id)
+                except Exception:
+                    pass
+            auto_job_id = None
+            btn_monitoring.config(text='○ Monitoraggio sospeso', bg='#fee2e2', fg='#991b1b')
+            log_to_ui("Monitoraggio automatico sospeso: è comunque possibile eseguire Scan manuale.")
+
+    btn_monitoring.config(command=toggle_monitoring)
 
     auto_job_id = frame.after(SCAN_INTERVAL, aggiorna_dashboard)
 

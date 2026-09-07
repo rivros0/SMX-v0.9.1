@@ -1,11 +1,31 @@
 import os
 import difflib
+import re
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import tkinter as tk
 from tkinter import Toplevel, Text, Scrollbar
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+
+def _student_associations_for_output(output_directory):
+    try:
+        from project_manager import VerificationProject
+        project = VerificationProject(os.path.dirname(output_directory))
+        return dict(project.manifest.get("student_associations", {}))
+    except Exception:
+        return {}
+
+
+def _student_label_for_mix_file(path, associations=None):
+    folder = os.path.basename(path)
+    if folder.endswith("_mix.txt"):
+        folder = folder[:-len("_mix.txt")]
+    match = re.search(r"(?:^|__)test(0[1-9]|[12][0-9]|30)$", folder, re.IGNORECASE)
+    test_key = "test" + match.group(1) if match else folder
+    student = (associations or {}).get(test_key, "")
+    return folder + (" — " + str(student) if student else "")
 
 
 def _resolve_directory_source(directory_source) -> str:
@@ -78,7 +98,7 @@ def calculate_similarity(file1_path, file2_path):
         return None, 0.0
 
 
-def show_similar_fragments(file1, file2, matcher):
+def show_similar_fragments(file1, file2, matcher, associations=None):
     """
     Mostra in una nuova finestra due colonne di testo con i contenuti dei due file,
     a partire dal primo blocco dopo la riga di separazione
@@ -87,8 +107,8 @@ def show_similar_fragments(file1, file2, matcher):
     top = Toplevel()
     top.title(
         "Somiglianze tra {} e {}".format(
-            os.path.basename(file1),
-            os.path.basename(file2),
+            _student_label_for_mix_file(file1, associations),
+            _student_label_for_mix_file(file2, associations),
         )
     )
     top.geometry("1200x800")
@@ -188,6 +208,7 @@ def plot_similarity_matrix(output_directory, report_text=None):
             files.append(os.path.join(output_directory, nome))
 
     files.sort()
+    associations = _student_associations_for_output(output_directory)
     num_files = len(files)
 
     if num_files < 2:
@@ -249,7 +270,7 @@ def plot_similarity_matrix(output_directory, report_text=None):
         # attenzione: righe = y, colonne = x
         matcher = matchers[y][x]
         if matcher:
-            show_similar_fragments(files[y], files[x], matcher)
+            show_similar_fragments(files[y], files[x], matcher, associations)
 
     # Plot della matrice
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -258,8 +279,8 @@ def plot_similarity_matrix(output_directory, report_text=None):
         annot=True,
         fmt=".0f",
         cmap="coolwarm",
-        xticklabels=[os.path.basename(f) for f in files],
-        yticklabels=[os.path.basename(f) for f in files],
+        xticklabels=[_student_label_for_mix_file(f, associations) for f in files],
+        yticklabels=[_student_label_for_mix_file(f, associations) for f in files],
         ax=ax,
     )
 
