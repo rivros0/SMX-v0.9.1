@@ -119,6 +119,7 @@ def create_frame_preparazione(root, global_config):
         bg="white",
     )
     btn_scan.grid(row=1, column=0, padx=8, pady=4, sticky="ew")
+    utils.add_tooltip(btn_scan, "Legge solo test01…test30 sul server e aggiorna il riepilogo: non modifica alcun file.")
 
     # Label per mostrare l'ultima directory locale creata
     lbl_local_dir = tk.Label(
@@ -131,11 +132,11 @@ def create_frame_preparazione(root, global_config):
 
     def do_create_local_copy():
         """
-        Crea una copia locale di test01..test30 sul Desktop in una cartella
-        timestampata + nome verifica, aggiorna il log e imposta selected_directory.
+        Raccoglie test01..test30 nella Dir Locale della verifica già aperta.
+        Non crea un secondo progetto e non altera mai le cartelle remote.
         """
         remote_dir = global_config["remote_directory"].get().strip()
-        nome_verifica = global_config["verifica_name"].get().strip()
+        local_dir = global_config["local_directory"].get().strip()
 
         if not remote_dir:
             messagebox.showwarning(
@@ -144,40 +145,35 @@ def create_frame_preparazione(root, global_config):
             )
             return
 
-        destination = filedialog.askdirectory(title="Scegli dove creare la Dir Locale della verifica")
-        if not destination:
+        if not local_dir:
+            messagebox.showwarning("Copia locale", "Crea o carica prima una verifica locale.")
             return
         try:
             from project_manager import VerificationProject
-            project = VerificationProject.create_in(
-                destination, nome_verifica or "Verifica", remote_directory=remote_dir,
-                extensions=global_config["file_extension"].get(),
-                alert_threshold=global_config["alert_threshold"].get(),
-            )
-            project.copy_from_remote()
-            new_dir = str(project.root)
+            project = VerificationProject(local_dir)
+            project.save(remote_directory=remote_dir, file_extensions=global_config["file_extension"].get())
+            copied = project.copy_from_remote()
+            project.save_session_file()
         except Exception as exc:
             messagebox.showerror("Copia locale", str(exc))
             return
 
-        if new_dir:
-            global_config["local_directory"].set(new_dir)
-            lbl_local_dir.config(
-                text=f"Ultima directory locale creata: {new_dir}"
-            )
-            report_text.insert(
-                "end",
-                "Directory locale impostata per la correzione/export.\n",
-            )
-            report_text.see("end")
+        lbl_local_dir.config(text=f"Dir Locale aggiornata: {local_dir}")
+        report_text.insert("end", f"Raccolte {len(copied)} cartelle test nella Dir Locale.\n")
+        for refresh_key in ("refresh_correzione", "refresh_export"):
+            refresh = global_config.get(refresh_key)
+            if callable(refresh):
+                refresh()
+        report_text.see("end")
 
     btn_create_copy = tk.Button(
         frame,
-        text="Crea copia locale (Desktop)",
+        text="Raccogli copia locale",
         command=do_create_local_copy,
         bg="white",
     )
     btn_create_copy.grid(row=1, column=1, padx=8, pady=4, sticky="ew")
+    utils.add_tooltip(btn_create_copy, "Copia tutte le cartelle test nella Dir Locale della verifica aperta, senza modificare il server.")
 
     def do_distribute_file():
         """
@@ -236,6 +232,7 @@ def create_frame_preparazione(root, global_config):
         bg="white",
     )
     btn_distribute.grid(row=1, column=2, padx=8, pady=4, sticky="ew")
+    utils.add_tooltip(btn_distribute, "Copia il file scelto nelle sole cartelle test01…test30 del server.")
 
     def do_clear_remote():
         remote_dir = global_config["remote_directory"].get().strip()
@@ -255,6 +252,7 @@ def create_frame_preparazione(root, global_config):
         bg="#fca5a5",
     )
     btn_clear_remote.grid(row=1, column=3, padx=8, pady=4, sticky="ew")
+    utils.add_tooltip(btn_clear_remote, "Elimina il contenuto delle cartelle test remote. Usare solo prima della verifica.")
 
     def open_remote_dir():
         remote_dir = global_config["remote_directory"].get().strip()
@@ -273,6 +271,7 @@ def create_frame_preparazione(root, global_config):
         bg="white",
     )
     btn_open_remote.grid(row=1, column=4, padx=8, pady=4, sticky="ew")
+    utils.add_tooltip(btn_open_remote, "Apre la directory remota in Esplora file per un controllo manuale.")
 
     # ======================================================================
     #  TABELLA RIEPILOGO (ORA SOPRA AL LOG)

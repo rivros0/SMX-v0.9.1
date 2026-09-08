@@ -5,6 +5,7 @@ from tkinter import messagebox, ttk
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+from utils import add_tooltip
 
 
 class StudentDetailWindow(tk.Toplevel):
@@ -45,12 +46,16 @@ class StudentDetailWindow(tk.Toplevel):
         if values:
             self.left_combo.current(1 if len(values) > 1 else 0)
             self.right_combo.current(0)
-        ttk.Button(controls, text="Confronta", command=self._render_comparison).grid(
+        btn_compare = ttk.Button(controls, text="Confronta", command=self._render_comparison)
+        btn_compare.grid(
             row=0, column=4, padx=(8, 4), pady=7
         )
-        ttk.Button(controls, text="Ripristina versione destra", command=self._restore).grid(
+        btn_restore = ttk.Button(controls, text="Ripristina versione destra", command=self._restore)
+        btn_restore.grid(
             row=0, column=5, padx=(4, 8), pady=7
         )
+        add_tooltip(btn_compare, "Confronta i due snapshot selezionati affiancando le differenze.")
+        add_tooltip(btn_restore, "Scrive lo snapshot di destra nella cartella remota dell'alunno dopo conferma.")
         self.left_combo.bind("<<ComboboxSelected>>", lambda _event: self._render_comparison())
         self.right_combo.bind("<<ComboboxSelected>>", lambda _event: self._render_comparison())
 

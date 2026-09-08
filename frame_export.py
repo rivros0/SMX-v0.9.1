@@ -352,18 +352,22 @@ def create_frame_export(root, global_config):
 
     btn_create_pdfs = tk.Button(frame, text="Crea PDF multipli", command=do_create_pdfs, bg="white")
     btn_create_pdfs.grid(row=1, column=0, sticky="ew", padx=8, pady=4)
+    utils.add_tooltip(btn_create_pdfs, "Crea i PDF dalla copia locale. Se necessario, genera prima i file mix mancanti.")
 
     pdf_actions = tk.Frame(frame, bg=YELLOW_BG)
     pdf_actions.grid(row=1, column=1, sticky="w", padx=8, pady=4)
     btn_megamerge = tk.Button(pdf_actions, text="MegaMerge PDF", command=do_megamerge, bg="white", width=15)
     btn_megamerge.pack(side="left")
+    utils.add_tooltip(btn_megamerge, "Unisce i PDF individuali in un unico documento pronto per la stampa fronte/retro.")
     btn_open_pdf_dir = tk.Button(
         pdf_actions, text="Apri cartella PDF", command=open_pdf_output_dir, bg="#fffbe6"
     )
     btn_open_pdf_dir.pack(side="left", padx=(6, 0))
+    utils.add_tooltip(btn_open_pdf_dir, "Apre 00_Pdf in Esplora file.")
 
     btn_refresh_list = tk.Button(frame, text="Aggiorna elenco", command=lambda: update_file_list(), bg="white")
     btn_refresh_list.grid(row=1, column=2, sticky="ew", padx=8, pady=4)
+    utils.add_tooltip(btn_refresh_list, "Rilegge i file presenti in 00_MixOutput e aggiorna l'elenco.")
 
     # ======================================================================
     #  RIGA 2-3: TEXT AREA ELENCO FILE OUTPUT (00_MixOutput)

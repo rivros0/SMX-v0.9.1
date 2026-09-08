@@ -12,6 +12,7 @@ for env_name, relative in (("TCL_LIBRARY", ("tcl", "tcl8.6")), ("TK_LIBRARY", ("
         os.environ[env_name] = candidate
 
 import data_handler
+from utils import add_tooltip
 from frame_associa import create_frame_associa
 from frame_live import create_frame_live
 from frame_preparazione import create_frame_preparazione
@@ -117,12 +118,16 @@ class SMXApplication:
                          cursor="hand2", anchor="w")
         local.pack(side="left", fill="x", expand=True, padx=(0, 8))
         local.bind("<Button-1>", lambda _event: self.open_or_choose_local_directory())
-        tk.Button(bar, text="Scegli Dir Locale…", command=self.choose_local_directory).pack(
+        btn_choose_local = tk.Button(bar, text="Scegli Dir Locale…", command=self.choose_local_directory)
+        btn_choose_local.pack(
             side="left", padx=(0, 4), pady=4
         )
-        tk.Button(bar, text="Aggiorna", command=self.refresh_current_directory).pack(
+        btn_refresh = tk.Button(bar, text="Aggiorna", command=self.refresh_current_directory)
+        btn_refresh.pack(
             side="left", padx=(0, 8), pady=4
         )
+        add_tooltip(btn_choose_local, "Seleziona una cartella-verifica esistente sulla postazione del docente.")
+        add_tooltip(btn_refresh, "Rilegge le informazioni della verifica aperta e aggiorna le schermate.")
 
         modes = tk.Frame(self.root, bg="#e8eef2")
         modes.pack(fill="x")
@@ -132,6 +137,7 @@ class SMXApplication:
             button = tk.Button(modes, text=mode, command=lambda value=mode: self.show_mode(value),
                                relief="flat", padx=14, pady=4)
             button.pack(side="left", padx=2, pady=3)
+            add_tooltip(button, "Apri la modalità " + mode + ".")
             self.mode_buttons[mode] = button
 
     def _rebuild_frames(self):

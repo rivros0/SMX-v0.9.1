@@ -771,9 +771,11 @@ def create_frame_associa(root, global_config):
         roster = [line.strip() for line in roster_text.get("1.0", "end-1c").splitlines() if line.strip()]
         refresh()
 
-    tk.Button(frame, text="Aggiorna elenco alunni", command=update_roster).grid(
+    btn_update_roster = tk.Button(frame, text="Aggiorna elenco alunni", command=update_roster)
+    btn_update_roster.grid(
         row=2, column=2, sticky="nw", padx=(6, 12), pady=4
     )
+    utils.add_tooltip(btn_update_roster, "Legge una riga per alunno/email senza modificare le associazioni già salvate.")
 
     def associate_selected():
         selected = tree.selection()
@@ -824,13 +826,24 @@ def create_frame_associa(root, global_config):
 
     controls = tk.Frame(frame, bg="#eef6ff")
     controls.grid(row=4, column=0, columnspan=3, sticky="w", padx=12, pady=(2, 8))
-    tk.Button(controls, text="Associa selezionati", command=associate_selected).pack(side="left", padx=6)
-    tk.Button(controls, text="Associa in ordine", command=associate_in_order).pack(side="left", padx=6)
-    tk.Button(controls, text="Rimuovi associazione", command=remove_selected).pack(side="left", padx=6)
-    tk.Button(controls, text="Salva associazioni", command=save_associations,
-              bg="#bbf7d0", font=("Segoe UI", 9, "bold")).pack(side="left", padx=6)
-    tk.Button(controls, text="Avvia verifica", command=start_live,
-              bg="#86efac", font=("Segoe UI", 9, "bold")).pack(side="left", padx=14)
+    btn_associate = tk.Button(controls, text="Associa selezionati", command=associate_selected)
+    btn_associate.pack(side="left", padx=6)
+    btn_associate_order = tk.Button(controls, text="Associa in ordine", command=associate_in_order)
+    btn_associate_order.pack(side="left", padx=6)
+    btn_remove = tk.Button(controls, text="Rimuovi associazione", command=remove_selected)
+    btn_remove.pack(side="left", padx=6)
+    btn_save = tk.Button(controls, text="Salva associazioni", command=save_associations,
+                         bg="#bbf7d0", font=("Segoe UI", 9, "bold"))
+    btn_save.pack(side="left", padx=6)
+    btn_start = tk.Button(controls, text="Avvia verifica", command=start_live,
+                          bg="#86efac", font=("Segoe UI", 9, "bold"))
+    btn_start.pack(side="left", padx=14)
+
+    utils.add_tooltip(btn_associate, "Associa la cartella test selezionata all'alunno selezionato a destra.")
+    utils.add_tooltip(btn_associate_order, "Abbina in sequenza le cartelle e gli alunni ancora liberi.")
+    utils.add_tooltip(btn_remove, "Rimuove solo l'associazione selezionata: non tocca le cartelle sul server.")
+    utils.add_tooltip(btn_save, "Salva le associazioni nel file della sessione SMX.")
+    utils.add_tooltip(btn_start, "Salva le associazioni e apre direttamente la schermata Live.")
 
     frame.columnconfigure(1, weight=1)
     frame.columnconfigure(2, weight=1)

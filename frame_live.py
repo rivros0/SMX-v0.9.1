@@ -4,7 +4,7 @@ from session_manager import SessionManager
 from student_card_widget import StudentCard
 import tkinter as tk
 from tkinter import ttk, scrolledtext
-from utils import enable_mousewheel, scan_remote_directory
+from utils import enable_mousewheel, scan_remote_directory, add_tooltip
 
 SCAN_INTERVAL = 30000  # 30 seconds
 
@@ -18,6 +18,7 @@ def create_frame_live(root, global_config):
         bg='#bbf7d0', fg='#14532d', font=('Segoe UI', 9, 'bold'),
     )
     btn_monitoring.grid(row=0, column=0, padx=(10, 8), pady=5, sticky='w')
+    # Il pulsante è anche l'indicatore visivo dello stato del monitoraggio.
 
     lbl_ext = tk.Label(frame, text='Estensioni:', bg='white')
     lbl_ext.grid(row=0, column=1, sticky='w', padx=5, pady=5)
@@ -113,7 +114,8 @@ def create_frame_live(root, global_config):
         initial_threshold = 30
         try:
             initial_threshold = int(threshold_var.get())
-        except:
+        except (TypeError, ValueError):
+            # Un valore non numerico non blocca la frame: resta la soglia predefinita.
             pass
             
         try:
@@ -222,28 +224,43 @@ def create_frame_live(root, global_config):
     def aggiorna_dashboard():
         nonlocal auto_job_id, session_manager, last_results
 
+        def schedule_next_scan():
+            """Mantiene vivo il monitoraggio anche dopo un errore temporaneo del server."""
+            nonlocal auto_job_id
+            if auto_job_id is not None:
+                try:
+                    frame.after_cancel(auto_job_id)
+                except Exception:
+                    pass
+            auto_job_id = frame.after(SCAN_INTERVAL, aggiorna_dashboard) if monitoring_active else None
+
         path = global_config['remote_directory'].get().strip()
         estensioni = global_config['file_extension'].get().strip()
 
         if not path or not os.path.isdir(path):
             lbl_esito.config(text="⚠️ Percorso non valido o vuoto.", fg="red")
+            schedule_next_scan()
             return
 
         if session_manager is None:
             session_manager = build_session_manager()
         if session_manager is None:
             lbl_esito.config(text="⚠️ Crea o carica una verifica per attivare storico e recupero.", fg="red")
+            schedule_next_scan()
             return
         try:
             session_manager.alert_threshold = int(threshold_var.get())
             global_config["alert_threshold"].set(session_manager.alert_threshold)
         except (TypeError, ValueError):
             pass
-        risultati = scan_remote_directory(
-            path,
-            estensioni,
-            count_lines=True,
-        )
+        try:
+            # La scansione resta sequenziale per limitare il carico sul server scolastico.
+            risultati = scan_remote_directory(path, estensioni, count_lines=True)
+        except OSError as exc:
+            log_to_ui(f"Errore durante la scansione remota: {exc}")
+            lbl_esito.config(text="⚠️ Scansione non riuscita: verrà ritentata automaticamente.", fg="red")
+            schedule_next_scan()
+            return
 
         if session_manager and risultati:
             campioni_per_salvataggio = []
@@ -266,6 +283,7 @@ def create_frame_live(root, global_config):
 
         if not risultati:
             lbl_esito.config(text="Nessun dato trovato nella directory.", fg="orange")
+            schedule_next_scan()
             return
         associations = global_config.get("student_associations", {})
         # Le cartelle non associate continuano a essere scansionate, salvate
@@ -275,15 +293,7 @@ def create_frame_live(root, global_config):
             lbl_esito.config(text="Associa gli alunni per visualizzare le card Live.", fg="orange")
         render_dashboard(last_results)
         
-        if auto_job_id is not None:
-            try:
-                frame.after_cancel(auto_job_id)
-            except Exception:
-                pass
-        if monitoring_active:
-            auto_job_id = frame.after(SCAN_INTERVAL, aggiorna_dashboard)
-        else:
-            auto_job_id = None
+        schedule_next_scan()
 
     def clear_dashboard():
         nonlocal last_results
@@ -314,6 +324,12 @@ def create_frame_live(root, global_config):
             log_to_ui("Monitoraggio automatico sospeso: è comunque possibile eseguire Scan manuale.")
 
     btn_monitoring.config(command=toggle_monitoring)
+
+    # Suggerimenti sintetici per le operazioni che incidono sul flusso Live.
+    add_tooltip(btn_monitoring, "Attiva o sospende le scansioni automatiche. Scan manuale resta sempre disponibile.")
+    add_tooltip(btn_scan, "Esegue subito una scansione sequenziale delle cartelle test; la dashboard mostra solo quelle associate.")
+    add_tooltip(btn_clear, "Nasconde le card dalla dashboard; non elimina storico, file o associazioni.")
+    add_tooltip(btn_collect, "Copia tutte le cartelle test nella Dir Locale per proseguire correzione ed export.")
 
     auto_job_id = frame.after(SCAN_INTERVAL, aggiorna_dashboard)
 

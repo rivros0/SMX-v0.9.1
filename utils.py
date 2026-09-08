@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+import tkinter as tk
 
 import data_handler  # per riutilizzare la logica su test01..test30
 
@@ -61,6 +62,63 @@ def enable_mousewheel(widget):
 
     widget.bind("<Enter>", on_enter, add="+")
     widget.bind("<MouseWheel>", on_wheel, add="+")
+
+
+class ToolTip:
+    """Suggerimento leggero mostrato quando il mouse resta su un widget."""
+
+    def __init__(self, widget, text, delay=550):
+        self.widget = widget
+        self.text = text
+        self.delay = delay
+        self._after_id = None
+        self._window = None
+        widget.bind("<Enter>", self._schedule, add="+")
+        widget.bind("<Leave>", self.hide, add="+")
+        widget.bind("<ButtonPress>", self.hide, add="+")
+        widget.bind("<Destroy>", self.hide, add="+")
+
+    def _schedule(self, _event=None):
+        self.hide()
+        self._after_id = self.widget.after(self.delay, self.show)
+
+    def show(self):
+        self._after_id = None
+        if self._window is not None or not self.text:
+            return
+        try:
+            window = tk.Toplevel(self.widget)
+            window.wm_overrideredirect(True)
+            window.wm_geometry(
+                "+{}+{}".format(self.widget.winfo_rootx() + 14, self.widget.winfo_rooty() + self.widget.winfo_height() + 8)
+            )
+            tk.Label(
+                window, text=self.text, justify="left", wraplength=360,
+                bg="#1e293b", fg="white", padx=8, pady=5,
+                font=("Segoe UI", 9), relief="solid", borderwidth=1,
+            ).pack()
+            self._window = window
+        except tk.TclError:
+            self._window = None
+
+    def hide(self, _event=None):
+        if self._after_id is not None:
+            try:
+                self.widget.after_cancel(self._after_id)
+            except tk.TclError:
+                pass
+            self._after_id = None
+        if self._window is not None:
+            try:
+                self._window.destroy()
+            except tk.TclError:
+                pass
+            self._window = None
+
+
+def add_tooltip(widget, text):
+    """Collega un tooltip a un controllo e restituisce l'oggetto creato."""
+    return ToolTip(widget, text)
 
 
 # =============================================================================

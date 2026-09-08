@@ -108,6 +108,7 @@ def create_frame_correzione(root, global_config):
     # ======================================================================
     btn_mix = tk.Button(frame_correzione, text="Mixa")
     btn_mix.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
+    utils.add_tooltip(btn_mix, "Crea i file *_mix.txt dalla copia locale. I file sorgente non vengono modificati.")
 
     chk_include_prompt = tk.Checkbutton(
         frame_correzione,
@@ -255,6 +256,7 @@ def create_frame_correzione(root, global_config):
         command=apri_directory_output,
     )
     btn_open_directory.grid(row=4, column=0, sticky="ew", padx=10, pady=5)
+    utils.add_tooltip(btn_open_directory, "Apre 00_MixOutput, dove vengono salvati i file di testo concatenati.")
 
     def analizza_similarita():
         similarity.analyze_similarities(
@@ -268,6 +270,7 @@ def create_frame_correzione(root, global_config):
         command=analizza_similarita,
     )
     btn_analyze.grid(row=4, column=1, sticky="ew", padx=10, pady=5)
+    utils.add_tooltip(btn_analyze, "Confronta i file mix e apre la matrice delle somiglianze; clicca una cella per il dettaglio.")
 
     # ======================================================================
     # RIGHE 5-6: LOG / REPORT
