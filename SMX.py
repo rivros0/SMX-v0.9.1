@@ -79,6 +79,9 @@ class SMXApplication:
         self.frames = {}
         self.config["show_mode"] = self.show_mode
         self._rebuild_frames()
+        # Correzione resta disponibile, ma non compare nella barra delle modalità.
+        # Il binding globale funziona anche quando il focus è in un campo di testo.
+        self.root.bind_all("<Control-Alt-k>", self._open_hidden_correction)
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(100, self.show_startup_dialog)
 
@@ -133,7 +136,8 @@ class SMXApplication:
         modes.pack(fill="x")
         tk.Label(modes, text="Modalità:", bg="#e8eef2").pack(side="left", padx=(8, 6), pady=5)
         self.mode_buttons = {}
-        for mode in ("Preparazione", "Associa", "Live", "Correzione", "Export", "Domini"):
+        # Correzione è una modalità avanzata, raggiungibile con Ctrl+Alt+K.
+        for mode in ("Preparazione", "Associa", "Live", "Export", "Domini"):
             button = tk.Button(modes, text=mode, command=lambda value=mode: self.show_mode(value),
                                relief="flat", padx=14, pady=4)
             button.pack(side="left", padx=2, pady=3)
@@ -169,6 +173,11 @@ class SMXApplication:
                 activeforeground="#ffffff" if active else "#0f172a",
                 font=("Segoe UI", 9, "bold" if active else "normal"),
             )
+
+    def _open_hidden_correction(self, _event=None):
+        """Apre la modalità Correzione tramite la scorciatoia Ctrl+Alt+K."""
+        self.show_mode("Correzione")
+        return "break"
 
     def new_project(self):
         parent = filedialog.askdirectory(title="Dove salvare la nuova verifica?")
