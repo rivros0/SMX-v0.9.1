@@ -22,10 +22,11 @@ SMX è un'applicazione desktop Tkinter per la gestione delle verifiche di progra
 ├── 00_Pdf/                       # PDF individuali e MEGAmerge
 ├── 00_SMXHistory/                # timeline e snapshot per studente
 ├── 00_SMXRecovery/               # backup creati prima di un recupero remoto
-└── 00_SMXSystem/
+├── 00_SMXSystem/
     ├── smx_project.json          # manifest tecnico della verifica attiva
-    ├── events.jsonl              # audit log degli eventi SMX
-    └── NomeVerifica.smxSession   # salvataggio portabile completo
+    └── events.jsonl              # audit log degli eventi SMX
+├── 20260907_Classe_Verifica.smxSession
+└── CONSEGNA_20260907_16-30-00_Classe_Verifica.smxSession
 ```
 
 Le verifiche create con versioni precedenti, che avevano `smx_project.json` nella radice, vengono migrate automaticamente alla prima apertura.
@@ -36,9 +37,21 @@ Le verifiche create con versioni precedenti, che avevano `smx_project.json` nell
 
 È il manifest leggero necessario per riaprire immediatamente una Dir Locale. Contiene nome e stato della verifica, Dir Remota associata, estensioni, soglia alert, testo Intro e date di aggiornamento.
 
-### `00_SMXSystem/*.smxSession`
+### `*.smxSession` nella root
 
 È un archivio ZIP con estensione `.smxSession` contenente l'intero progetto: manifest, copie locali, storico, snapshot, recuperi, mix, PDF e log. Serve per trasferire una verifica su un'altra postazione o recuperarla dopo un guasto.
+
+Il salvataggio ordinario viene mantenuto nella **root della Dir Locale**, in modo che sia subito identificabile e copiabile. I file `.smxSession` non vengono annidati l'uno nell'altro.
+
+### Consegna ufficiale immutabile
+
+Alla fine della verifica, **Finalizza consegna e termina verifica** crea nella root un file distinto:
+
+```text
+CONSEGNA_YYYYMMDD_HH-MM-SS_Classe_NomeVerifica.smxSession
+```
+
+Prima della creazione SMX effettua un'ultima raccolta dal server. Il file contiene lo stato completo e definitivo della verifica; non viene sovrascritto dai successivi salvataggi ordinari. Le cartelle `testXX` restano anche visibili nella Dir Locale e consultabili anche senza SMX.
 
 Nel menu **File**:
 
@@ -59,6 +72,8 @@ Preparazione (scansione remota automatica)
 Live (monitoraggio, timeline e alert)
     ↓
 Raccogli copia locale
+    ↓
+Finalizza consegna e termina verifica
     ↓
 Correzione (mix e similarità)
     ↓
@@ -81,7 +96,7 @@ All'avvio l'utente può scegliere:
 | `data_handler.py` | Operazioni mirate sulle sole `test01`–`test30`, scansione, copia, distribuzione e pulizia. |
 | `utils.py` | Parsing estensioni, scansione sequenziale Live, conteggi e utilità GUI. |
 | `frame_preparazione.py` | Scansione iniziale, elenco completo dei file, copia locale, distribuzione e pulizia remota. |
-| `frame_live.py` | Monitoraggio sequenziale, dashboard, raccolta locale e log. |
+| `frame_live.py` | Monitoraggio sequenziale, dashboard, raccolta locale, finalizzazione della consegna e log. |
 | `student_card_widget.py` | Card Live, sparkline cliccabile, lampeggiamento e chiusura alert. |
 | `student_detail_window.py` | Grafico cronologico, confronto diff affiancato e recupero dello snapshot. |
 | `frame_associa.py` | Associazione fra cartelle `testXX` e alunni. |
@@ -94,7 +109,7 @@ La frame Preparazione viene mostrata dopo l'inizializzazione di una nuova verifi
 
 - La tabella elenca tutte le cartelle test trovate e **tutti i nomi dei file**, senza filtrare la colonna dell'elenco.
 - Il conteggio “File con estensione” usa invece il set di estensioni configurato per la verifica.
-- **Crea copia locale** crea una nuova Dir Locale e raccoglie solo le cartelle test ammesse.
+- **Raccogli copia locale** aggiorna nella Dir Locale già aperta solo le cartelle test ammesse.
 - **Distribuisci file** copia un file scelto nelle cartelle remote `test01`–`test30` esistenti.
 - **Pulisci cartelle test remote** svuota solo il contenuto delle cartelle test e richiede tre conferme.
 
@@ -120,7 +135,16 @@ La modalità Live legge una cartella test alla volta, in modo sequenziale e mai 
 - Ogni card mostra righe, variazione, ultima modifica e sparkline degli ultimi campioni.
 - Cliccando la sparkline si apre il dettaglio dello studente.
 - Un incremento superiore alla soglia genera un alert, registra l'evento nel log e fa lampeggiare la card. Il pulsante **Chiudi alert** resta disponibile fino alla chiusura manuale.
-- **Raccogli copia locale** aggiorna nella Dir Locale solo `test01`–`test30` e salva la sessione.
+- Il primo rilevamento dopo l'apertura di una sessione è una **baseline**: non genera alert retroattivi per dati storici.
+- **Raccogli copia locale** crea una copia specchio: ogni `testXX` locale viene sostituita con la versione più recente del server. I file locali non più presenti sul server vengono rimossi e annotati nel log Live e nell'audit log della sessione.
+- **Finalizza consegna e termina verifica** esegue l'ultima raccolta, crea una sessione `CONSEGNA_…smxSession`, mantiene `testXX` leggibili nella root e disabilita monitoraggio, scansione e raccolte successive per quella verifica.
+
+## Interfaccia e Help
+
+- La frame **Correzione** è nascosta dalla barra delle modalità.
+- Le modalità **Domini** e **Monitor Domini** non sono esposte nell'interfaccia corrente.
+- Il menu **Help** contiene guida operativa e informazioni sull'applicazione.
+- I principali comandi dell'interfaccia hanno tooltip al passaggio del mouse.
 
 ## Storico, diff e recupero
 

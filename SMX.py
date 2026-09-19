@@ -12,7 +12,7 @@ for env_name, relative in (("TCL_LIBRARY", ("tcl", "tcl8.6")), ("TK_LIBRARY", ("
         os.environ[env_name] = candidate
 
 import data_handler
-from utils import add_tooltip
+from utils import add_tooltip, enable_mousewheel
 from frame_associa import create_frame_associa
 from frame_live import create_frame_live
 from frame_preparazione import create_frame_preparazione
@@ -106,7 +106,68 @@ class SMXApplication:
         file_menu.add_separator()
         file_menu.add_command(label="Esci", command=self.close)
         menu.add_cascade(label="File", menu=file_menu)
+
+        help_menu = tk.Menu(menu, tearoff=False)
+        help_menu.add_command(label="Guida operativa", command=self.show_help)
+        help_menu.add_separator()
+        help_menu.add_command(label="Informazioni su SMX", command=self.show_about)
+        menu.add_cascade(label="Help", menu=help_menu)
         self.root.config(menu=menu)
+
+    def show_help(self):
+        """Mostra una guida breve per il flusso scuola → consegna → casa."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Help – Guida operativa SMX")
+        dialog.geometry("760x620")
+        dialog.minsize(620, 440)
+        dialog.transient(self.root)
+
+        text = tk.Text(dialog, wrap="word", padx=14, pady=12, font=("Segoe UI", 10))
+        text.pack(side="left", fill="both", expand=True)
+        scrollbar = ttk.Scrollbar(dialog, orient="vertical", command=text.yview)
+        scrollbar.pack(side="right", fill="y")
+        text.config(yscrollcommand=scrollbar.set)
+        enable_mousewheel(text)
+        text.insert("1.0", """SMX – guida operativa
+
+CONCETTI CHIAVE
+• Dir Remota: è il server/laboratorio. SMX considera esclusivamente le cartelle test01…test30 e il loro contenuto, comprese le sottocartelle.
+• Dir Locale: è il progetto completo sulla postazione del docente. Qui SMX salva raccolte, storico, log, file di correzione, PDF e sessioni.
+• Il server non viene modificato durante le normali scansioni: Distribuisci, Pulisci e Recupera sono sempre operazioni esplicite.
+
+1. INIZIARE E PREPARARE LA VERIFICA
+Per una nuova verifica indica classe, nome e tipi di file da considerare. La Dir Locale viene identificata con timestamp, classe e nome della verifica.
+
+Nella schermata Preparazione, Aggiorna controlla le cartelle test e mostra tutti i file presenti; il controllo si aggiorna anche automaticamente ogni 30 secondi. Prima di iniziare usa Pulisci solo se sei certo che il server non contenga elaborati da conservare. Distribuisci copia i materiali predisposti nelle cartelle test.
+
+2. ASSOCIARE GLI ALUNNI
+Nella schermata Associa collega ogni testXX a un alunno. L'associazione viene salvata nella sessione, è usata nelle card, nei PDF e nelle analisi, ma non rinomina né altera le cartelle del server. Le cartelle senza associazione restano comunque incluse nella raccolta locale per sicurezza.
+
+3. MONITORARE IN LIVE
+Il monitoraggio è attivo all'apertura e legge le cartelle in sequenza, per non gravare sul server. Le card mostrano cartella test, alunno, righe rilevate, ultimo aggiornamento e andamento nel tempo. La prima rilevazione è una base di confronto e non genera avvisi; un incremento oltre la soglia evidenzia la card e può essere chiuso manualmente.
+
+4. RACCOGLIERE UNA COPIA LOCALE
+Raccogli copia locale crea nella Dir Locale uno specchio aggiornato di tutte le cartelle testXX del server. Se la raccolta viene ripetuta, ogni cartella locale viene sostituita con la versione più recente disponibile sul server: nel log sono indicati anche eventuali file locali rimossi perché non più presenti sul server. La posizione della raccolta viene sempre riportata nel log.
+
+5. FINALIZZARE LA CONSEGNA
+Quando gli alunni hanno consegnato, usa Finalizza consegna e termina verifica. SMX esegue un'ultima raccolta, mantiene le cartelle testXX immediatamente accessibili nella Dir Locale e genera un archivio ufficiale immutabile denominato CONSEGNA_timestamp_Classe_Verifica.smxSession. Dopo la finalizzazione, il monitoraggio e le ulteriori raccolte sono disattivati per proteggere lo stato consegnato.
+
+6. CONTINUARE IL LAVORO A CASA
+Il file .smxSession ordinario, nella root della Dir Locale, salva il progetto aggiornabile. Il file CONSEGNA_….smxSession è invece la copia ufficiale della consegna da trasferire o archiviare. Entrambi contengono il progetto, lo storico e gli elaborati raccolti; le cartelle testXX restano inoltre consultabili senza SMX.
+
+7. CORREGGERE ED ESPORTARE
+La correzione usa l'ultima copia locale per creare i file di testo concatenati, confrontare somiglianze e preparare gli elaborati. Export può generare automaticamente i file mix mancanti prima dei PDF; produce PDF individuali con classe, verifica, cartella test e alunno, oltre al PDF MEGAmerge. Controlla il log di ogni schermata per conoscere esito e percorsi dei file creati.
+
+Buona pratica: conserva il file CONSEGNA_….smxSession e la Dir Locale prima di rimuovere o riutilizzare le cartelle sul server.
+""")
+        text.config(state="disabled")
+
+    def show_about(self):
+        messagebox.showinfo(
+            "Informazioni su SMX",
+            "SMX – Gestione elaborati\nVersione 0.9.1\n\n"
+            "Gestione di verifiche con raccolta, monitoraggio, consegna e correzione locale.",
+        )
 
     def _build_header(self):
         bar = tk.Frame(self.root, bg="#eeeeee")
