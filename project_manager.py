@@ -93,9 +93,16 @@ class VerificationProject:
         atomic_json_write(self.manifest_path, self.manifest)
 
     def log_event(self, event_type: str, data: dict | None = None):
+        """Registra un evento anche per progetti creati con versioni precedenti.
+
+        Alcune sessioni storiche possono avere il manifest ma non la cartella di
+        sistema. La ricreiamo prima dell'apertura del log, così il monitoraggio
+        non viene interrotto da un semplice file di eventi mancante.
+        """
         entry = {"timestamp": dt.datetime.now().astimezone().isoformat(),
                  "event_type": event_type, "data": data or {}}
         path = self.root / SYSTEM_DIR / "events.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
