@@ -141,7 +141,7 @@ La modalità Live legge una cartella test alla volta, in modo sequenziale e mai 
 
 ## Interfaccia e Help
 
-- La frame **Correzione** è nascosta dalla barra delle modalità.
+- La frame **Correzione** è disponibile nella barra delle modalità per creare i mix e analizzare le somiglianze. I controlli avanzati dell'**Intro** (etichetta, testo e relativa inclusione nel mix) restano nascosti all'apertura per mantenere essenziale la schermata ordinaria.
 - Le modalità **Domini** e **Monitor Domini** non sono esposte nell'interfaccia corrente.
 - Il menu **Help** contiene guida operativa e informazioni sull'applicazione.
 - I principali comandi dell'interfaccia hanno tooltip al passaggio del mouse.
@@ -164,7 +164,7 @@ Il recupero remoto è l'eccezione controllata alla regola di sola lettura: prima
 
 In Correzione SMX usa le cartelle locali degli studenti (`testXX` o `alunno__testXX`) ed esclude cartelle di sistema o verifiche annidate.
 
-1. Il testo Intro, le estensioni e le opzioni di inclusione generano i file `_mix.txt` in `00_MixOutput`.
+1. Le estensioni e, se scelta, l'Intro generano i file `_mix.txt` in `00_MixOutput`. Il nome della cartella non viene inserito nel corpo del mix, perché è già riportato nell'intestazione dei PDF insieme all'alunno.
 2. L'analisi di similarità confronta i file di mix effettivi; le cartelle spurie non entrano nella matrice.
 3. Export crea PDF individuali in `00_Pdf`, applica il prefisso della verifica e può creare un unico PDF MEGAmerge con pagine pari per elaborato.
 4. Il pulsante **Apri cartella PDF** apre direttamente `00_Pdf`, pronta per controllo e stampa.

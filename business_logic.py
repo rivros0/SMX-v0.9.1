@@ -267,7 +267,7 @@ def mix_files(lbl_or_var_directory,
               tree,
               report_text,
               include_prompt,
-              include_subdir):
+              include_subdir=False):
     """
     Funzione principale richiamata dalla scheda di Correzione per creare
     tutti i file di mix all'interno della directory 00_MixOutput.
@@ -279,7 +279,9 @@ def mix_files(lbl_or_var_directory,
       - tree                 : Treeview con elenco subdirectory (testXX)
       - report_text          : widget Text per il log
       - include_prompt       : bool, include o meno l'intro nel mix
-      - include_subdir       : bool, include o meno il nome della subdir nel mix
+      - include_subdir       : compatibilità con versioni precedenti; i nuovi
+                               flussi non lo usano perché il PDF ha già una
+                               intestazione completa con test e alunno.
     """
     base_dir = _extract_directory(lbl_or_var_directory)
 
@@ -549,7 +551,7 @@ def create_missing_mix_files(base_directory, extensions_text, prompt_string, rep
             continue
         message, result_path = create_mix_file(
             base_dir, folder, prompt_string, extensions, output_directory,
-            include_prompt=True, include_subdir=True,
+            include_prompt=True, include_subdir=False,
         )
         if report_text is not None:
             report_text.insert("end", message)

@@ -102,7 +102,9 @@ class StudentCard(tk.Frame):
         self.delta_label.config(text=delta_text, fg=delta_color)
         try:
             timestamp = dt.datetime.fromisoformat(last["timestamp"])
-            self.time_label.config(text=f"Aggiornato\n{timestamp:%d/%m/%Y %H:%M}")
+            # La colonna si chiama già "Aggiornamento": separiamo data e ora
+            # su due righe, evitando che l'orario venga compresso o troncato.
+            self.time_label.config(text=f"{timestamp:%d/%m/%Y}\n{timestamp:%H:%M}")
         except Exception:
             self.time_label.config(text="Ultimo aggiornamento disponibile")
         self.name_label.config(fg="#b91c1c" if active_alert else "#0f172a")

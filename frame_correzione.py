@@ -21,8 +21,7 @@ def create_frame_correzione(root, global_config):
     Modifiche rispetto alla versione originale:
       - Rimossa la riga con "Scegli Directory" e la label locale "Directory selezionata".
       - La riga sulle estensioni è stata spostata PRIMA dell'INTRO.
-      - La directory di lavoro è presa solo da global_config["selected_directory"]
-        (la stessa mostrata nella barra superiore).
+      - La directory di lavoro è presa dalla Dir Locale della barra superiore.
 
     Funzionalità preservate:
       - Label con esempio di estensioni multiple.
@@ -34,7 +33,6 @@ def create_frame_correzione(root, global_config):
     frame_correzione = tk.Frame(root, bg="#089c52")
 
     include_prompt_var = tk.BooleanVar(value=True)
-    include_subdir_var = tk.BooleanVar(value=True)
 
     # ======================================================================
     # RIGA 0: ESTENSIONI (spostata PRIMA dell'INTRO)
@@ -54,13 +52,17 @@ def create_frame_correzione(root, global_config):
     entry_extension.grid(row=0, column=1, sticky="w", padx=10, pady=5)
 
     # ======================================================================
-    # RIGA 1: INTRO / PROMPT
+    # RIGA 1: INTRO / PROMPT (opzioni avanzate, nascoste inizialmente)
     # ======================================================================
-    lbl_prompt = tk.Label(frame_correzione, text="INTRO:", bg="white")
-    lbl_prompt.grid(row=1, column=0, sticky="w", padx=10, pady=5)
+    intro_controls = tk.Frame(frame_correzione, bg="#089c52")
+    intro_controls.grid(row=1, column=0, columnspan=4, sticky="ew")
+    intro_controls.columnconfigure(1, weight=1)
 
-    entry_prompt = tk.Text(frame_correzione, width=80, height=3)
-    entry_prompt.grid(row=1, column=1, columnspan=2, sticky="ew", padx=10, pady=5)
+    lbl_prompt = tk.Label(intro_controls, text="INTRO:", bg="white")
+    lbl_prompt.grid(row=0, column=0, sticky="nw", padx=10, pady=5)
+
+    entry_prompt = tk.Text(intro_controls, width=80, height=3)
+    entry_prompt.grid(row=0, column=1, sticky="ew", padx=10, pady=5)
 
     # Registro il widget dell'INTRO nella configurazione globale
     # in modo da poterlo aggiornare quando viene caricata una configurazione.
@@ -104,27 +106,39 @@ def create_frame_correzione(root, global_config):
 
 
     # ======================================================================
-    # RIGA 2: CHECKBOX + PULSANTE MIX
+    # L'Intro è opzionale: la sua area non appesantisce la correzione ordinaria.
+    # Manteniamo lo stato logico: winfo_ismapped() può risultare falso per un
+    # istante quando la scheda viene appena mostrata con pack().
+    intro_visible = False
+
+    # Il callback globale alterna visibilità e viene richiamato dalla finestra principale.
+    def toggle_intro_controls():
+        nonlocal intro_visible
+        if intro_visible:
+            intro_controls.grid_remove()
+            intro_visible = False
+            return False
+        intro_controls.grid()
+        intro_visible = True
+        entry_prompt.focus_set()
+        return True
+
+    global_config["toggle_intro_controls"] = toggle_intro_controls
+    intro_controls.grid_remove()
+
+    # RIGA 2: PULSANTE MIX
     # ======================================================================
     btn_mix = tk.Button(frame_correzione, text="Mixa")
     btn_mix.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
     utils.add_tooltip(btn_mix, "Crea i file *_mix.txt dalla copia locale. I file sorgente non vengono modificati.")
 
     chk_include_prompt = tk.Checkbutton(
-        frame_correzione,
+        intro_controls,
         text="Includi Intro",
         variable=include_prompt_var,
         bg="white",
     )
-    chk_include_prompt.grid(row=2, column=1, sticky="w", padx=10, pady=2)
-
-    chk_include_subdir = tk.Checkbutton(
-        frame_correzione,
-        text="Includi Nome (subdir)",
-        variable=include_subdir_var,
-        bg="white",
-    )
-    chk_include_subdir.grid(row=2, column=2, sticky="w", padx=10, pady=2)
+    chk_include_prompt.grid(row=1, column=1, sticky="w", padx=10, pady=(0, 5))
 
     # ======================================================================
     # RIGA 3: TREEVIEW (con colonna Mix file)
@@ -395,7 +409,7 @@ def create_frame_correzione(root, global_config):
             tree,
             report_text,
             include_prompt_var.get(),
-            include_subdir_var.get(),
+            False,
         )
 
     btn_mix.config(command=do_mix)
@@ -408,7 +422,7 @@ def create_frame_correzione(root, global_config):
         "end",
         "Modalità Correzione pronta.\n"
         "1) Seleziona la directory dalla barra superiore (clic su 'nessuna' / percorso).\n"
-        "2) Imposta le estensioni (es. .php,.html,.css) e l'intro.\n"
+        "2) Imposta le estensioni (es. .php,.html,.css). L'Intro è opzionale.\n"
         "3) Premi 'Mixa' per generare i file *_mix.txt in 00_MixOutput.\n"
         "   → la colonna 'Mix file' mostrerà il percorso del file di mix.\n"
         "   → cliccando su una cella di quella colonna, il contenuto verrà copiato negli appunti.\n"

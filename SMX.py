@@ -81,8 +81,8 @@ class SMXApplication:
         self.frames = {}
         self.config["show_mode"] = self.show_mode
         self._rebuild_frames()
-        # Correzione resta disponibile, ma non compare nella barra delle modalità.
-        # Il binding globale funziona anche quando il focus è in un campo di testo.
+        # Il binding globale rende disponibili i controlli avanzati dell'Intro
+        # anche quando il focus è in un campo di testo.
         self.root.bind_all("<Control-Alt-k>", self._open_hidden_correction)
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(100, self.show_startup_dialog)
@@ -156,7 +156,7 @@ Quando gli alunni hanno consegnato, usa Finalizza consegna e termina verifica. S
 Il file .smxSession ordinario, nella root della Dir Locale, salva il progetto aggiornabile. Il file CONSEGNA_….smxSession è invece la copia ufficiale della consegna da trasferire o archiviare. Entrambi contengono il progetto, lo storico e gli elaborati raccolti; le cartelle testXX restano inoltre consultabili senza SMX.
 
 7. CORREGGERE ED ESPORTARE
-La correzione usa l'ultima copia locale per creare i file di testo concatenati, confrontare somiglianze e preparare gli elaborati. Export può generare automaticamente i file mix mancanti prima dei PDF; produce PDF individuali con classe, verifica, cartella test e alunno, oltre al PDF MEGAmerge. Controlla il log di ogni schermata per conoscere esito e percorsi dei file creati.
+La modalità Correzione usa l'ultima copia locale per creare i file di testo concatenati, confrontare somiglianze e preparare gli elaborati. L'Intro è un'opzione avanzata e, quando necessario, permette di scegliere se inserirla nei file mix. Il nome della cartella non viene ripetuto nel contenuto dei mix: PDF e MEGAmerge riportano già un'intestazione completa con cartella test e alunno. Export può generare automaticamente i file mix mancanti prima dei PDF; produce PDF individuali con classe, verifica, cartella test e alunno, oltre al PDF MEGAmerge. Controlla il log di ogni schermata per conoscere esito e percorsi dei file creati.
 
 Buona pratica: conserva il file CONSEGNA_….smxSession e la Dir Locale prima di rimuovere o riutilizzare le cartelle sul server.
 """)
@@ -199,9 +199,8 @@ Buona pratica: conserva il file CONSEGNA_….smxSession e la Dir Locale prima di
         modes.pack(fill="x")
         tk.Label(modes, text="Modalità:", bg="#e8eef2").pack(side="left", padx=(8, 6), pady=5)
         self.mode_buttons = {}
-        # Correzione è una modalità avanzata, raggiungibile con Ctrl+Alt+K.
         # Le modalità Domini restano nel codice per compatibilità, ma non sono esposte nell'interfaccia.
-        for mode in ("Preparazione", "Associa", "Live", "Export"):
+        for mode in ("Preparazione", "Associa", "Live", "Correzione", "Export"):
             button = tk.Button(modes, text=mode, command=lambda value=mode: self.show_mode(value),
                                relief="flat", padx=14, pady=4)
             button.pack(side="left", padx=2, pady=3)
@@ -243,8 +242,11 @@ Buona pratica: conserva il file CONSEGNA_….smxSession e la Dir Locale prima di
             )
 
     def _open_hidden_correction(self, _event=None):
-        """Apre la modalità Correzione tramite la scorciatoia Ctrl+Alt+K."""
+        """Apre Correzione e alterna la visibilità dei controlli avanzati dell'Intro."""
         self.show_mode("Correzione")
+        toggle_intro = self.config.get("toggle_intro_controls")
+        if callable(toggle_intro):
+            toggle_intro()
         return "break"
 
     def new_project(self):
