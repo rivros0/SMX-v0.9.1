@@ -1,13 +1,16 @@
 import datetime as dt
 import tkinter as tk
 from tkinter import ttk
+from utils import add_tooltip
 
 
 class StudentCard(tk.Frame):
     """Riga compatta della dashboard Live, con allarme per forti incrementi."""
 
     ROW_HEIGHT = 62
-    CARD_WIDTH = 500
+    # Larghezza aderente ai contenuti compatti: evita un vuoto dopo il pulsante
+    # mantenendo comunque tre colonne nella dashboard Live.
+    CARD_WIDTH = 460
     NORMAL_BG = "#ffffff"
     ALERT_COLORS = ("#fff1f2", "#fecdd3")
 
@@ -26,37 +29,40 @@ class StudentCard(tk.Frame):
 
         # La colonna della sparkline ha spazio riservato: non può scomparire
         # quando la card mantiene una larghezza fissa.
-        self.columnconfigure(3, minsize=110, weight=0)
+        # Tutte le colonne, incluso il comando di chiusura alert, devono
+        # rientrare nella larghezza fissa della card anche con tre colonne Live.
+        self.columnconfigure(3, minsize=100, weight=0)
         self.test_label = tk.Label(self, text=student_name, bg=self.NORMAL_BG, anchor="w",
-                                   fg="#475569", font=("Segoe UI", 8, "bold"), width=13)
-        self.test_label.grid(row=0, column=0, sticky="sw", padx=(12, 8))
+                                   fg="#475569", font=("Segoe UI", 8, "bold"), width=11)
+        self.test_label.grid(row=0, column=0, sticky="sw", padx=(8, 4))
         self.name_label = tk.Label(self, text=display_name or student_name, bg=self.NORMAL_BG, anchor="w",
-                                   font=("Segoe UI", 10, "bold"), width=13)
-        self.name_label.grid(row=1, column=0, sticky="nw", padx=(12, 8))
+                                   font=("Segoe UI", 10, "bold"), width=11)
+        self.name_label.grid(row=1, column=0, sticky="nw", padx=(8, 4))
 
-        self.lines_label = tk.Label(self, bg=self.NORMAL_BG, anchor="w", width=9,
+        self.lines_label = tk.Label(self, bg=self.NORMAL_BG, anchor="w", width=8,
                                     font=("Segoe UI", 10, "bold"))
-        self.lines_label.grid(row=0, column=1, sticky="sw", padx=8)
-        self.delta_label = tk.Label(self, bg=self.NORMAL_BG, anchor="w", width=9,
+        self.lines_label.grid(row=0, column=1, sticky="sw", padx=4)
+        self.delta_label = tk.Label(self, bg=self.NORMAL_BG, anchor="w", width=8,
                                     font=("Segoe UI", 9))
-        self.delta_label.grid(row=1, column=1, sticky="nw", padx=8)
+        self.delta_label.grid(row=1, column=1, sticky="nw", padx=4)
 
-        self.time_label = tk.Label(self, bg=self.NORMAL_BG, fg="#475569", anchor="w", width=15,
+        self.time_label = tk.Label(self, bg=self.NORMAL_BG, fg="#475569", anchor="w", width=13,
                                    font=("Segoe UI", 8))
-        self.time_label.grid(row=0, column=2, rowspan=2, sticky="w", padx=8)
+        self.time_label.grid(row=0, column=2, rowspan=2, sticky="w", padx=4)
 
         # Con le card a larghezza fissa il valore Tk predefinito (molto largo)
         # farebbe uscire il canvas dalla riga e nasconderebbe la sparkline.
-        self.sparkline = tk.Canvas(self, width=110, height=30, bg="#f8fafc", bd=0,
+        self.sparkline = tk.Canvas(self, width=100, height=30, bg="#f8fafc", bd=0,
                                    highlightbackground="#cbd5e1", highlightthickness=1,
                                    cursor="hand2")
-        self.sparkline.grid(row=0, column=3, rowspan=2, sticky="ew", padx=10, pady=6)
+        self.sparkline.grid(row=0, column=3, rowspan=2, sticky="ew", padx=4, pady=6)
         self.sparkline.bind("<Configure>", lambda _event: self._draw_sparkline())
         self.sparkline.bind("<Button-1>", self._open_detail)
 
         self.actions = tk.Frame(self, bg=self.NORMAL_BG)
-        self.actions.grid(row=0, column=4, rowspan=2, padx=(3, 6), pady=5, sticky="e")
-        self.dismiss_button = ttk.Button(self.actions, text="Chiudi alert", command=self.reset_alert)
+        self.actions.grid(row=0, column=4, rowspan=2, padx=(0, 4), pady=5, sticky="e")
+        self.dismiss_button = ttk.Button(self.actions, text="Chiudi", width=7, command=self.reset_alert)
+        add_tooltip(self.dismiss_button, "Chiude l'alert per questa versione dell'elaborato.")
         self._background_widgets = (
             self, self.test_label, self.name_label, self.lines_label, self.delta_label,
             self.time_label, self.sparkline, self.actions,
@@ -76,7 +82,10 @@ class StudentCard(tk.Frame):
         last = self.history[-1]
         previous = self.history[-2] if len(self.history) > 1 else None
         delta = last["line_count"] - previous["line_count"] if previous else 0
-        suspicious = previous is not None and delta > self.session_manager.alert_threshold
+        # Gli snapshot marcati baseline arrivano al primo scan dopo l'apertura
+        # di una sessione e non devono colorare la dashboard come un alert.
+        suspicious = (previous is not None and not last.get("baseline", False)
+                      and delta > self.session_manager.alert_threshold)
         active_alert = suspicious and not self.session_manager.is_alert_dismissed(
             self.student_name, last.get("snapshot_id")
         )

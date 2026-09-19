@@ -36,6 +36,7 @@ def _optional_frame(module_name, function_name):
 create_frame_correzione, _ = _optional_frame("frame_correzione", "create_frame_correzione")
 create_frame_export, _ = _optional_frame("frame_export", "create_frame_export")
 create_frame_domini, _ = _optional_frame("frame_domini", "create_frame_domini")
+create_frame_monitor_domini, _ = _optional_frame("frame_monitor_domini", "create_frame_monitor_domini")
 
 APP_STATE = Path.home() / ".smx_state.json"
 
@@ -71,6 +72,7 @@ class SMXApplication:
         # Alias temporaneo: i frame storici vengono migrati senza rompere plugin locali.
         self.config["selected_directory"] = self.config["local_directory"]
         self.config["student_associations"] = {}
+        self.config["domain_students"] = []
         self._load_state()
         self._build_menu()
         self._build_header()
@@ -137,7 +139,8 @@ class SMXApplication:
         tk.Label(modes, text="Modalità:", bg="#e8eef2").pack(side="left", padx=(8, 6), pady=5)
         self.mode_buttons = {}
         # Correzione è una modalità avanzata, raggiungibile con Ctrl+Alt+K.
-        for mode in ("Preparazione", "Associa", "Live", "Export", "Domini"):
+        # Le modalità Domini restano nel codice per compatibilità, ma non sono esposte nell'interfaccia.
+        for mode in ("Preparazione", "Associa", "Live", "Export"):
             button = tk.Button(modes, text=mode, command=lambda value=mode: self.show_mode(value),
                                relief="flat", padx=14, pady=4)
             button.pack(side="left", padx=2, pady=3)
@@ -154,8 +157,12 @@ class SMXApplication:
             "Correzione": create_frame_correzione(self.content, self.config),
             "Export": create_frame_export(self.content, self.config),
             "Domini": create_frame_domini(self.content, self.config),
+            "Monitor Domini": create_frame_monitor_domini(self.content, self.config),
         }
-        self.show_mode(self.config["current_mode"].get())
+        initial_mode = self.config["current_mode"].get()
+        if initial_mode in ("Domini", "Monitor Domini"):
+            initial_mode = "Live"
+        self.show_mode(initial_mode)
 
     def show_mode(self, mode):
         if mode not in self.frames:
@@ -345,6 +352,7 @@ class SMXApplication:
         self.config["verifica_name"].set(manifest.get("name", "Verifica"))
         self.config["class_name"].set(manifest.get("class_name", ""))
         self.config["student_associations"] = dict(manifest.get("student_associations", {}))
+        self.config["domain_students"] = list(manifest.get("domain_students", []))
         self.config["file_extension"].set(manifest.get("file_extensions", ".cpp"))
         self.config["alert_threshold"].set(manifest.get("alert_threshold", 30))
         self.config["intro_text"].set(manifest.get("intro_text", ""))
@@ -480,6 +488,7 @@ class SMXApplication:
             "verifica_name": self.config["verifica_name"].get(),
             "class_name": self.config["class_name"].get(),
             "student_associations": self.config.get("student_associations", {}),
+            "domain_students": self.config.get("domain_students", []),
             "alert_threshold": self.config["alert_threshold"].get(),
             "current_mode": self.config["current_mode"].get(),
             "intro_text": self.config["intro_text"].get(),
@@ -504,6 +513,7 @@ class SMXApplication:
             self.config["verifica_name"].set(data.get("verifica_name", ""))
             self.config["class_name"].set(data.get("class_name", ""))
             self.config["student_associations"] = dict(data.get("student_associations", {}))
+            self.config["domain_students"] = list(data.get("domain_students", []))
             self.config["intro_text"].set(data.get("intro_text", ""))
             try:
                 self.config["alert_threshold"].set(int(data.get("alert_threshold", 30)))
@@ -529,6 +539,7 @@ class SMXApplication:
             name=self.config["verifica_name"].get(),
             class_name=self.config["class_name"].get(),
             student_associations=self.config.get("student_associations", {}),
+            domain_students=self.config.get("domain_students", []),
             remote_directory=self.config["remote_directory"].get(),
             file_extensions=self.config["file_extension"].get(),
             alert_threshold=self.config["alert_threshold"].get(),

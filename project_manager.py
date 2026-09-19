@@ -99,14 +99,17 @@ class VerificationProject:
         with path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
-    def copy_from_remote(self):
+    def copy_from_remote(self, return_details=False):
         import data_handler
         remote = self.manifest.get("remote_directory", "")
         if not remote or not os.path.isdir(remote):
             raise ValueError("Directory remota non disponibile")
-        copied = data_handler._copy_test_folders(remote, str(self.root), report_text=None)
-        self.log_event("remote_collection", {"folders": copied})
-        return copied
+        result = data_handler._copy_test_folders(
+            remote, str(self.root), report_text=None, return_details=return_details
+        )
+        details = result if return_details else {"folders": result, "removed_files": []}
+        self.log_event("remote_collection", details)
+        return result
 
     def archive(self, destination: str) -> str:
         destination = Path(destination).resolve()
@@ -126,15 +129,19 @@ class VerificationProject:
             if session_path.suffix.lower() != SESSION_EXTENSION.lower():
                 session_path = session_path.with_suffix(SESSION_EXTENSION)
         else:
-            # Il nome della directory è già timestamp_Classe_NomeVerifica.
-            session_path = self.root / SYSTEM_DIR / f"{self.root.name}{SESSION_EXTENSION}"
+            # La sessione portabile è il file principale della verifica:
+            # tenerla nella root rende immediata l'identificazione e la copia.
+            session_path = self.root / f"{self.root.name}{SESSION_EXTENSION}"
         session_path.parent.mkdir(parents=True, exist_ok=True)
         self.log_event("session_saved", {"path": str(session_path)})
         temporary = session_path.with_suffix(session_path.suffix + ".tmp")
         try:
             with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as bundle:
                 for path in self.root.rglob("*"):
-                    if not path.is_file() or path.resolve() in (session_path, temporary):
+                    # Non annidiamo file sessione dentro un'altra sessione:
+                    # evita archivi ricorsivi e include solo i dati della verifica.
+                    if (not path.is_file() or path.resolve() in (session_path, temporary)
+                            or path.suffix.lower() == SESSION_EXTENSION.lower()):
                         continue
                     bundle.write(path, path.relative_to(self.root).as_posix())
             os.replace(temporary, session_path)
@@ -142,6 +149,31 @@ class VerificationProject:
             if temporary.exists():
                 temporary.unlink()
         return str(session_path)
+
+    def finalize_delivery(self):
+        """Congela una consegna completa, dopo un'ultima raccolta dal server."""
+        collection = self.copy_from_remote(return_details=True)
+        finalized_at = dt.datetime.now().astimezone().isoformat()
+        self.save(status="finalized", finalized_at=finalized_at)
+
+        parts = ["CONSEGNA", dt.datetime.now().strftime("%Y%m%d_%H-%M-%S")]
+        class_name = _safe_name(self.manifest.get("class_name", ""))
+        verification_name = _safe_name(self.manifest.get("name", "Verifica"))
+        if class_name:
+            parts.append(class_name)
+        parts.append(verification_name)
+        candidate = self.root / ("_".join(parts) + SESSION_EXTENSION)
+        counter = 2
+        while candidate.exists():
+            candidate = self.root / ("_".join(parts) + "_" + str(counter) + SESSION_EXTENSION)
+            counter += 1
+
+        self.log_event("delivery_finalized", {
+            "session_path": str(candidate), "finalized_at": finalized_at,
+            "folders": collection["folders"], "removed_files": collection["removed_files"],
+        })
+        session_path = self.save_session_file(str(candidate))
+        return collection, session_path
 
     @classmethod
     def load_session_file(cls, session_file: str, destination_parent: str):

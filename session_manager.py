@@ -20,6 +20,9 @@ class SessionManager:
         self.remote_directory = remote_directory or self.project.manifest.get("remote_directory", "")
         self.extensions = extensions or self.project.manifest.get("file_extensions", "")
         self.dismissed_alerts = self._load_dismissed_alerts()
+        # Una sessione riaperta può puntare a file già popolati sul server:
+        # il primo rilevamento è una baseline, non un comportamento sospetto.
+        self._baseline_pending = True
 
     def log_event(self, event_type, data):
         self.project.log_event(event_type, data)
@@ -97,7 +100,7 @@ class SessionManager:
                 continue
         return total
 
-    def capture(self, student, source_folder, line_count=None):
+    def capture(self, student, source_folder, line_count=None, baseline=False):
         source = Path(source_folder)
         if not source.is_dir():
             return None
@@ -116,7 +119,7 @@ class SessionManager:
             line_count = self._count_source_lines(source)
         entry = {"timestamp": dt.datetime.now().astimezone().isoformat(), "file_name": student,
                  "line_count": int(line_count), "hash": folder_hash, "snapshot_id": stamp,
-                 "content": content}
+                 "content": content, "baseline": bool(baseline)}
         timeline.parent.mkdir(parents=True, exist_ok=True)
         with timeline.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(entry, ensure_ascii=False) + "\n")
@@ -125,7 +128,7 @@ class SessionManager:
             diff = "\n".join(difflib.unified_diff(previous[-1].get("content", "").splitlines(),
                                                    content.splitlines(), lineterm=""))
             (snapshot_dir / "changes.diff").write_text(diff, encoding="utf-8")
-            if delta > self.alert_threshold:
+            if not baseline and delta > self.alert_threshold:
                 self.log_event("alert_suspicion", {"student": student, "delta": delta})
                 entry["alert_delta"] = delta
         self.log_event("snapshot_created", {"student": student, "snapshot": stamp,
@@ -134,11 +137,17 @@ class SessionManager:
 
     def add_sample(self, samples):
         captured = []
+        baseline = self._baseline_pending
         for item in samples:
             if item.get("source_folder"):
-                entry = self.capture(item["name"], item["source_folder"], item.get("line_count"))
+                entry = self.capture(
+                    item["name"], item["source_folder"], item.get("line_count"), baseline=baseline
+                )
                 if entry is not None:
                     captured.append(entry)
+        # Dopo il primo giro ogni variazione successiva viene valutata normalmente.
+        if samples:
+            self._baseline_pending = False
         return captured
 
     def get_history(self, name):

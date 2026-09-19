@@ -1,5 +1,6 @@
 import os
 import shutil
+import datetime as dt
 
 import tkinter as tk
 from tkinter import filedialog, messagebox, Scrollbar
@@ -9,6 +10,7 @@ import data_handler
 import utils
 
 YELLOW_BG = "#fff5cc"
+PREPARATION_SCAN_INTERVAL = 30_000
 
 
 def create_frame_preparazione(root, global_config):
@@ -22,6 +24,7 @@ def create_frame_preparazione(root, global_config):
     - Cancella il contenuto delle cartelle test remote (pulsante rosso)
     """
     frame = tk.Frame(root, bg=YELLOW_BG)
+    scan_job_id = None
 
     # ======================================================================
     #  TABELLA RIEPILOGO CARTELLE TEST REMOTE (creata qui, usata più sotto)
@@ -91,34 +94,50 @@ def create_frame_preparazione(root, global_config):
     # ======================================================================
     #  RIGA 1: PULSANTI OPERATIVI
     # ======================================================================
-    def do_scan_tests():
+    def schedule_next_scan():
+        """Programma il prossimo controllo senza accumulare timer duplicati."""
+        nonlocal scan_job_id
+        if scan_job_id is not None:
+            try:
+                frame.after_cancel(scan_job_id)
+            except tk.TclError:
+                pass
+        scan_job_id = frame.after(PREPARATION_SCAN_INTERVAL, lambda: do_scan_tests(automatic=True))
+
+    def do_scan_tests(automatic=False):
         """
         Scansiona le cartelle test01..test30 sulla directory remota,
         scrive il risultato nel log e aggiorna la tabella riepilogo.
         """
         remote_dir = global_config["remote_directory"].get().strip()
         if not remote_dir:
-            messagebox.showwarning(
-                "Attenzione",
-                "Imposta prima la directory remota (contente le cartelle testXX).",
-            )
+            if automatic:
+                report_text.insert("end", "Aggiornamento automatico non eseguito: directory remota non impostata.\n")
+                report_text.see("end")
+            else:
+                messagebox.showwarning(
+                    "Attenzione",
+                    "Imposta prima la directory remota (contente le cartelle testXX).",
+                )
+            schedule_next_scan()
             return
         data_handler.scan_test_folders(remote_dir, report_text)
         update_remote_stats_table()
+        lbl_last_scan.config(text="Ultima scansione: " + dt.datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
         report_text.insert(
             "end",
             "\nScansione Preparazione completata: la tabella contiene tutti i file trovati, "
             "mentre il conteggio dedicato usa le estensioni della verifica.\n",
         )
         report_text.see("end")
+        schedule_next_scan()
 
-    btn_scan = tk.Button(
-        frame,
-        text="Scansiona cartelle test",
-        command=do_scan_tests,
-        bg="white",
-    )
-    btn_scan.grid(row=1, column=0, padx=8, pady=4, sticky="ew")
+    scan_controls = tk.Frame(frame, bg=YELLOW_BG)
+    scan_controls.grid(row=1, column=0, padx=8, pady=4, sticky="w")
+    btn_scan = tk.Button(scan_controls, text="Aggiorna", command=do_scan_tests, bg="white", width=11)
+    btn_scan.pack(side="left")
+    lbl_last_scan = tk.Label(scan_controls, text="Ultima scansione: —", bg=YELLOW_BG, fg="#475569")
+    lbl_last_scan.pack(side="left", padx=(8, 0))
     utils.add_tooltip(btn_scan, "Legge solo test01…test30 sul server e aggiorna il riepilogo: non modifica alcun file.")
 
     # Label per mostrare l'ultima directory locale creata
@@ -338,5 +357,16 @@ def create_frame_preparazione(root, global_config):
         )
 
     global_config["refresh_preparazione"] = do_scan_tests
+    # La scansione automatica mantiene il riepilogo aggiornato durante la preparazione.
+    schedule_next_scan()
+
+    def cancel_scan_timer(_event=None):
+        if scan_job_id is not None:
+            try:
+                frame.after_cancel(scan_job_id)
+            except tk.TclError:
+                pass
+
+    frame.bind("<Destroy>", cancel_scan_timer, add="+")
 
     return frame

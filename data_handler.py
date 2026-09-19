@@ -93,20 +93,48 @@ def scan_test_folders(remote_directory, report_text):
     report_text.see("end")
 
 
-def _copy_test_folders(remote_directory, target_root, report_text=None):
+def _copy_test_folders(remote_directory, target_root, report_text=None, return_details=False):
     """
     Copia tutte le cartelle test01..test30 esistenti da remote_directory
     dentro target_root (mantenendo i nomi delle cartelle).
 
-    Restituisce la lista delle cartelle effettivamente copiate.
+    Ogni testXX locale viene sostituita integralmente: una raccolta ripetuta
+    diventa quindi una fotografia fedele dell'ultima versione sul server,
+    senza file locali rimasti da versioni precedenti.
+
+    Restituisce la lista delle cartelle effettivamente copiate. Con
+    return_details=True restituisce anche i file locali rimossi.
     """
     copied = []
+    removed_files = []
 
     for folder_name, src in _iter_test_folders(remote_directory):
-        if os.path.exists(src):
+        if os.path.isdir(src):
             dest = os.path.join(target_root, folder_name)
             try:
-                shutil.copytree(src, dest, dirs_exist_ok=True)
+                source_path = os.path.realpath(src)
+                destination_path = os.path.realpath(dest)
+                if source_path == destination_path:
+                    raise ValueError("origine e destinazione coincidono")
+                # Dest è sempre una sottocartella testXX esplicita della Dir Locale.
+                # La rimozione non può interessare gli archivi, lo storico o il manifest.
+                if os.path.isdir(dest):
+                    source_files = {
+                        os.path.relpath(os.path.join(root, name), src)
+                        for root, _dirs, names in os.walk(src) for name in names
+                    }
+                    destination_files = {
+                        os.path.relpath(os.path.join(root, name), dest)
+                        for root, _dirs, names in os.walk(dest) for name in names
+                    }
+                    removed_files.extend(
+                        os.path.join(folder_name, relative)
+                        for relative in sorted(destination_files - source_files)
+                    )
+                    shutil.rmtree(dest)
+                elif os.path.exists(dest):
+                    os.unlink(dest)
+                shutil.copytree(src, dest)
                 copied.append(folder_name)
             except Exception as e:
                 if report_text is not None:
@@ -115,6 +143,8 @@ def _copy_test_folders(remote_directory, target_root, report_text=None):
                         f"Errore durante la copia di {src} -> {dest}: {e}\n",
                     )
 
+    if return_details:
+        return {"folders": copied, "removed_files": removed_files}
     return copied
 
 

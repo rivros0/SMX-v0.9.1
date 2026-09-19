@@ -3,7 +3,7 @@ import datetime
 from session_manager import SessionManager
 from student_card_widget import StudentCard
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+from tkinter import ttk, scrolledtext, messagebox
 from utils import enable_mousewheel, scan_remote_directory, add_tooltip
 
 SCAN_INTERVAL = 30000  # 30 seconds
@@ -132,6 +132,10 @@ def create_frame_live(root, global_config):
             return None
 
     session_manager = build_session_manager()
+    is_finalized = bool(session_manager and session_manager.project.manifest.get("status") == "finalized")
+    if is_finalized:
+        monitoring_active = False
+        btn_monitoring.config(text="● Verifica terminata", bg="#e2e8f0", fg="#475569", state="disabled")
 
     def log_to_ui(message):
         log_area.insert(tk.END, f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {message}\n")
@@ -201,11 +205,23 @@ def create_frame_live(root, global_config):
                 remote_directory=remote_dir,
                 file_extensions=global_config['file_extension'].get().strip(),
             )
-            copied = project.copy_from_remote()
-            project.save_session_file()
-            message = f"✅ Raccolte {len(copied)} cartelle test nella Dir Locale."
+            collection = project.copy_from_remote(return_details=True)
+            copied = collection["folders"]
+            removed_files = collection["removed_files"]
+            session_path = project.save_session_file()
+            message = (
+                f"✅ Raccolte {len(copied)} cartelle test nella Dir Locale.\n"
+                f"Salvate in: {local_dir}"
+            )
             lbl_esito.config(text=message, fg="green")
             log_to_ui(message)
+            if removed_files:
+                log_to_ui(f"Rimossi {len(removed_files)} file locali non più presenti sul server:")
+                for removed_file in removed_files:
+                    log_to_ui(f"  - {removed_file}")
+            else:
+                log_to_ui("Nessun file locale obsoleto da rimuovere.")
+            log_to_ui(f"Sessione SMX aggiornata: {session_path}")
             for refresh_key in ("refresh_correzione", "refresh_export"):
                 refresh = global_config.get(refresh_key)
                 if callable(refresh):
@@ -215,11 +231,71 @@ def create_frame_live(root, global_config):
             lbl_esito.config(text=message, fg="red")
             log_to_ui(message)
 
+    collection_actions = tk.Frame(frame, bg="#046276")
+    collection_actions.grid(row=4, column=0, padx=(10, 5), pady=5, sticky="w")
     btn_collect = tk.Button(
-        frame, text="Raccogli copia locale", command=raccogli_copia_locale,
+        collection_actions, text="Raccogli copia locale", command=raccogli_copia_locale,
         bg="#d9f99d", font=("Segoe UI", 9, "bold"),
     )
-    btn_collect.grid(row=4, column=0, padx=(10, 5), pady=5, sticky="w")
+    btn_collect.pack(side="left")
+
+    def finalize_delivery():
+        """Crea una consegna immutabile e conserva testXX visibili nella Dir Locale."""
+        nonlocal monitoring_active, auto_job_id, is_finalized
+        local_dir = global_config['local_directory'].get().strip()
+        remote_dir = global_config['remote_directory'].get().strip()
+        if not local_dir or not remote_dir:
+            messagebox.showwarning("Finalizza consegna", "Imposta Dir Remota e apri una verifica locale.")
+            return
+        confirmed = messagebox.askyesno(
+            "Finalizza consegna",
+            "SMX eseguirà un'ultima raccolta dal server e creerà una sessione CONSEGNA immutabile.\n\n"
+            "Le cartelle testXX resteranno visibili nella Dir Locale anche senza SMX. "
+            "Il monitoraggio verrà terminato.\n\nProcedere?",
+        )
+        if not confirmed:
+            return
+        try:
+            from project_manager import VerificationProject
+            project = VerificationProject(local_dir)
+            project.save(
+                remote_directory=remote_dir,
+                file_extensions=global_config['file_extension'].get().strip(),
+            )
+            collection, delivery_path = project.finalize_delivery()
+            removed_files = collection["removed_files"]
+            message = (
+                "✅ Consegna finalizzata.\n"
+                f"Cartelle testXX disponibili in: {local_dir}\n"
+                f"Sessione immutabile: {delivery_path}"
+            )
+            lbl_esito.config(text="✅ Consegna finalizzata: cartelle testXX e sessione CONSEGNA salvate.", fg="green")
+            log_to_ui(message)
+            if removed_files:
+                log_to_ui(f"Rimossi {len(removed_files)} file locali obsoleti durante la raccolta finale.")
+                for removed_file in removed_files:
+                    log_to_ui(f"  - {removed_file}")
+
+            monitoring_active = False
+            is_finalized = True
+            if auto_job_id is not None:
+                frame.after_cancel(auto_job_id)
+            auto_job_id = None
+            btn_monitoring.config(text="● Verifica terminata", bg="#e2e8f0", fg="#475569", state="disabled")
+            btn_scan.config(state="disabled")
+            btn_collect.config(state="disabled")
+            btn_finalize.config(text="Consegna finalizzata", state="disabled", bg="#e2e8f0")
+            messagebox.showinfo("Consegna finalizzata", message)
+        except Exception as exc:
+            message = f"⚠️ Finalizzazione non riuscita: {exc}"
+            lbl_esito.config(text=message, fg="red")
+            log_to_ui(message)
+
+    btn_finalize = tk.Button(
+        collection_actions, text="Finalizza consegna e termina verifica", command=finalize_delivery,
+        bg="#fef08a", font=("Segoe UI", 9, "bold"),
+    )
+    btn_finalize.pack(side="left", padx=(8, 0))
 
     def aggiorna_dashboard():
         nonlocal auto_job_id, session_manager, last_results
@@ -233,6 +309,9 @@ def create_frame_live(root, global_config):
                 except Exception:
                     pass
             auto_job_id = frame.after(SCAN_INTERVAL, aggiorna_dashboard) if monitoring_active else None
+
+        if is_finalized:
+            return
 
         path = global_config['remote_directory'].get().strip()
         estensioni = global_config['file_extension'].get().strip()
@@ -330,8 +409,14 @@ def create_frame_live(root, global_config):
     add_tooltip(btn_scan, "Esegue subito una scansione sequenziale delle cartelle test; la dashboard mostra solo quelle associate.")
     add_tooltip(btn_clear, "Nasconde le card dalla dashboard; non elimina storico, file o associazioni.")
     add_tooltip(btn_collect, "Copia tutte le cartelle test nella Dir Locale per proseguire correzione ed export.")
+    add_tooltip(btn_finalize, "Esegue l'ultima raccolta, crea una sessione CONSEGNA immutabile e ferma il monitoraggio.")
 
-    auto_job_id = frame.after(SCAN_INTERVAL, aggiorna_dashboard)
+    if is_finalized:
+        btn_scan.config(state="disabled")
+        btn_collect.config(state="disabled")
+        btn_finalize.config(text="Consegna finalizzata", state="disabled", bg="#e2e8f0")
+
+    auto_job_id = frame.after(SCAN_INTERVAL, aggiorna_dashboard) if monitoring_active else None
 
     global_config["refresh_live"] = aggiorna_dashboard
 
