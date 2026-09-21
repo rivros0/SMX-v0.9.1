@@ -2,6 +2,7 @@
 import datetime
 from session_manager import SessionManager
 from student_card_widget import StudentCard
+from activity_heatmap import ActivityHeatmap
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 from utils import enable_mousewheel, scan_remote_directory, add_tooltip
@@ -47,8 +48,11 @@ def create_frame_live(root, global_config):
     btn_scan = tk.Button(frame, text='Scan', width=15)
     btn_scan.grid(row=0, column=5, padx=5, pady=5)
 
+    btn_heatmap = tk.Button(frame, text='Heatmap attività', width=17)
+    btn_heatmap.grid(row=0, column=6, padx=5, pady=5)
+
     btn_clear = tk.Button(frame, text='Pulisci Dashboard', width=15)
-    btn_clear.grid(row=0, column=6, padx=5, pady=5)
+    btn_clear.grid(row=0, column=7, padx=5, pady=5)
 
     # === Dashboard Area con Scrollbar === #
     # Contenitore esterno per la scorrimento
@@ -132,6 +136,7 @@ def create_frame_live(root, global_config):
             return None
 
     session_manager = build_session_manager()
+    heatmap_window = ActivityHeatmap(frame.winfo_toplevel())
     is_finalized = bool(session_manager and session_manager.project.manifest.get("status") == "finalized")
     if is_finalized:
         monitoring_active = False
@@ -371,6 +376,13 @@ def create_frame_live(root, global_config):
         if not last_results:
             lbl_esito.config(text="Associa gli alunni per visualizzare le card Live.", fg="orange")
         render_dashboard(last_results)
+        # La heatmap, se già aperta, segue i nuovi campioni appena salvati.
+        heatmap_window.refresh(
+            session_manager,
+            [result[0] for result in last_results],
+            associations,
+            session_manager.alert_threshold,
+        )
         
         schedule_next_scan()
 
@@ -382,8 +394,28 @@ def create_frame_live(root, global_config):
             widget.destroy()
         canvas.configure(scrollregion=canvas.bbox("all"))
 
+    def show_activity_heatmap():
+        """Apre la vista storica Live senza avviare ulteriori scansioni remote."""
+        if session_manager is None:
+            messagebox.showwarning(
+                "Heatmap attività",
+                "Crea o carica una verifica per visualizzare i campioni del monitoraggio.",
+            )
+            return
+        associations = global_config.get("student_associations", {})
+        students = [result[0] for result in last_results]
+        if not students:
+            students = [name for name in associations if associations.get(name)]
+        try:
+            threshold = int(threshold_var.get())
+        except (TypeError, ValueError):
+            threshold = session_manager.alert_threshold
+        heatmap_window.show(session_manager, students, associations, threshold)
+        log_to_ui("Heatmap attività aperta: usa esclusivamente i campioni già registrati.")
+
     btn_scan.config(command=aggiorna_dashboard)
     btn_clear.config(command=clear_dashboard)
+    btn_heatmap.config(command=show_activity_heatmap)
 
     def toggle_monitoring():
         nonlocal monitoring_active, auto_job_id
@@ -407,6 +439,7 @@ def create_frame_live(root, global_config):
     # Suggerimenti sintetici per le operazioni che incidono sul flusso Live.
     add_tooltip(btn_monitoring, "Attiva o sospende le scansioni automatiche. Scan manuale resta sempre disponibile.")
     add_tooltip(btn_scan, "Esegue subito una scansione sequenziale delle cartelle test; la dashboard mostra solo quelle associate.")
+    add_tooltip(btn_heatmap, "Visualizza gli incrementi di righe nel tempo senza eseguire altre letture del server.")
     add_tooltip(btn_clear, "Nasconde le card dalla dashboard; non elimina storico, file o associazioni.")
     add_tooltip(btn_collect, "Copia tutte le cartelle test nella Dir Locale per proseguire correzione ed export.")
     add_tooltip(btn_finalize, "Esegue l'ultima raccolta, crea una sessione CONSEGNA immutabile e ferma il monitoraggio.")

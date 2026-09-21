@@ -134,6 +134,7 @@ La modalità Live legge una cartella test alla volta, in modo sequenziale e mai 
 - La dashboard usa card a larghezza fissa; quando la finestra offre spazio sufficiente, dispone fino a tre colonne senza ingrandire le card.
 - Ogni card mostra righe, variazione, ultima modifica e sparkline degli ultimi campioni.
 - Cliccando la sparkline si apre il dettaglio dello studente.
+- Il pulsante **Heatmap attività** apre una finestra con righe `testXX`/alunno e colonne corrispondenti agli intervalli di scansione più recenti. Bianco indica nessuna variazione, verde un incremento entro soglia, rosso un incremento oltre soglia e arancione una diminuzione. La finestra usa esclusivamente gli snapshot già salvati in `00_SMXHistory`, si aggiorna al termine di ogni scansione Live senza ulteriori accessi al server e non modifica né server né elaborati. Il clic su una cella apre il dettaglio dell'alunno corrispondente.
 - Un incremento superiore alla soglia genera un alert, registra l'evento nel log e fa lampeggiare la card. Il pulsante **Chiudi alert** resta disponibile fino alla chiusura manuale.
 - Il primo rilevamento dopo l'apertura di una sessione è una **baseline**: non genera alert retroattivi per dati storici.
 - **Raccogli copia locale** crea una copia specchio: ogni `testXX` locale viene sostituita con la versione più recente del server. I file locali non più presenti sul server vengono rimossi e annotati nel log Live e nell'audit log della sessione.

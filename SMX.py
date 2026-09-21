@@ -146,6 +146,8 @@ Nella schermata Associa collega ogni testXX a un alunno. L'associazione viene sa
 3. MONITORARE IN LIVE
 Il monitoraggio è attivo all'apertura e legge le cartelle in sequenza, per non gravare sul server. Le card mostrano cartella test, alunno, righe rilevate, ultimo aggiornamento e andamento nel tempo. La prima rilevazione è una base di confronto e non genera avvisi; un incremento oltre la soglia evidenzia la card e può essere chiuso manualmente.
 
+Heatmap attività usa i campioni già registrati per mostrare, in tempo reale, gli incrementi per alunno e intervallo di scansione: bianco = invariato, verde = incremento, rosso = incremento oltre la soglia, arancione = diminuzione. Non effettua altre letture del server e si aggiorna alla conclusione di ogni scansione Live. Cliccando una cella si apre il dettaglio dell'alunno.
+
 4. RACCOGLIERE UNA COPIA LOCALE
 Raccogli copia locale crea nella Dir Locale uno specchio aggiornato di tutte le cartelle testXX del server. Se la raccolta viene ripetuta, ogni cartella locale viene sostituita con la versione più recente disponibile sul server: nel log sono indicati anche eventuali file locali rimossi perché non più presenti sul server. La posizione della raccolta viene sempre riportata nel log.
 
