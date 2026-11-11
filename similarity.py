@@ -250,47 +250,89 @@ def plot_similarity_matrix(output_directory, report_text=None):
             j_indice = j_indice + 1
         i_indice = i_indice + 1
 
-    def on_click(event):
-        if event.inaxes is None:
+    # Una sola matrice e una sola collezione di matcher alimentano entrambe
+    # le viste: cambiare scheda non comporta nuovi confronti tra file.
+    from tkinter import ttk
+    from matplotlib.figure import Figure
+    from similarity_graph import create_similarity_graph
+
+    labels = [
+        _student_label_for_mix_file(file_path, associations)
+        for file_path in files
+    ]
+
+    window = tk.Toplevel()
+    window.title("Analisi similarità - Matrice | Grafo")
+    window.geometry("1250x850")
+    window.minsize(850, 550)
+
+    notebook = ttk.Notebook(window)
+    notebook.pack(fill="both", expand=True, padx=8, pady=8)
+
+    heatmap_tab = ttk.Frame(notebook)
+    graph_tab = ttk.Frame(notebook)
+    notebook.add(heatmap_tab, text="Matrice")
+    notebook.add(graph_tab, text="Grafo")
+
+    def open_pair(first_index, second_index):
+        """Apre il confronto affiancato, già disponibile in SMX."""
+        if first_index == second_index:
             return
 
-        try:
-            x = int(round(event.xdata))
-            y = int(round(event.ydata))
-        except Exception:
+        matcher = matchers[first_index][second_index]
+        if matcher is None:
+            matcher = matchers[second_index][first_index]
+
+        if matcher is not None:
+            show_similar_fragments(
+                files[first_index], files[second_index],
+                matcher, associations
+            )
+
+    def on_heatmap_click(event):
+        if event.inaxes is None or event.xdata is None or event.ydata is None:
             return
 
-        if x < 0 or y < 0 or x >= num_files or y >= num_files:
+        # Seaborn posiziona ogni cella tra coordinate intere consecutive.
+        column = int(event.xdata)
+        row = int(event.ydata)
+        if row < 0 or column < 0 or row >= num_files or column >= num_files:
             return
+        open_pair(row, column)
 
-        if x == y:
-            # diagonale (file con sé stesso), non facciamo nulla
-            return
-
-        # attenzione: righe = y, colonne = x
-        matcher = matchers[y][x]
-        if matcher:
-            show_similar_fragments(files[y], files[x], matcher, associations)
-
-    # Plot della matrice
-    fig, ax = plt.subplots(figsize=(10, 8))
+    # Matrice originale, ora incorporata in una scheda Tkinter.
+    figure = Figure(figsize=(11, 8), dpi=100)
+    axes = figure.add_subplot(111)
     sns.heatmap(
         similarity_matrix,
         annot=True,
         fmt=".0f",
         cmap="coolwarm",
-        xticklabels=[_student_label_for_mix_file(f, associations) for f in files],
-        yticklabels=[_student_label_for_mix_file(f, associations) for f in files],
-        ax=ax,
+        xticklabels=labels,
+        yticklabels=labels,
+        ax=axes,
+    )
+    axes.set_title("Matrice di similarità tra elaborati")
+    axes.set_xlabel("Elaborati")
+    axes.set_ylabel("Elaborati")
+    axes.tick_params(axis="x", labelrotation=45)
+    figure.tight_layout()
+    heatmap_canvas = FigureCanvasTkAgg(figure, master=heatmap_tab)
+    heatmap_canvas.mpl_connect("button_press_event", on_heatmap_click)
+    heatmap_canvas.draw()
+    heatmap_canvas.get_tk_widget().pack(fill="both", expand=True)
+
+    # Il grafo riceve ESATTAMENTE la matrice già calcolata per la heatmap.
+    graph_figure = create_similarity_graph(
+        graph_tab, files, similarity_matrix, labels, open_pair
     )
 
-    plt.title("Matrice di Similarità tra i file di output")
-    plt.xlabel("File di Output")
-    plt.ylabel("File di Output")
-    plt.xticks(rotation=45, ha="right")
-    fig.tight_layout()
-    fig.canvas.mpl_connect("button_press_event", on_click)
-    plt.show()
+    def close_analysis_window():
+        figure.clear()
+        graph_figure.clear()
+        window.destroy()
+
+    window.protocol("WM_DELETE_WINDOW", close_analysis_window)
 
     if report_text is not None:
         report_text.insert(
