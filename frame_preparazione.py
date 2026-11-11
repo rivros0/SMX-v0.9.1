@@ -351,7 +351,7 @@ def create_frame_preparazione(root, global_config):
         scroll_y.pack(side="right", fill="y")
         content.configure(yscrollcommand=scroll_y.set)
         for item in details.split("  |  "):
-            content.insert("end", item + "\\n")
+            content.insert("end", item + "\n")
         content.configure(state="disabled")
 
     tree_stats.bind("<Double-1>", show_file_details)
