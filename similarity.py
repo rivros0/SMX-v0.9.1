@@ -292,8 +292,9 @@ def plot_similarity_matrix(output_directory, report_text=None):
         if event.inaxes is None or event.xdata is None or event.ydata is None:
             return
 
-        column = int(round(event.xdata))
-        row = int(round(event.ydata))
+        # Seaborn posiziona ogni cella tra coordinate intere consecutive.
+        column = int(event.xdata)
+        row = int(event.ydata)
         if row < 0 or column < 0 or row >= num_files or column >= num_files:
             return
         open_pair(row, column)
