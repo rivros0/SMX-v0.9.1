@@ -37,6 +37,7 @@ def create_frame_preparazione(root, global_config):
             "num_files",
             "num_extension_files",
             "extension_files",
+            "file_mtimes",
         ),
         show="headings",
     )
@@ -45,12 +46,14 @@ def create_frame_preparazione(root, global_config):
     tree_stats.heading("num_files", text="File")
     tree_stats.heading("num_extension_files", text="File con estensione")
     tree_stats.heading("extension_files", text="Tutti i file presenti")
+    tree_stats.heading("file_mtimes", text="Ultima modifica dei file")
 
     tree_stats.column("subdirectory", width=120, anchor="w")
     tree_stats.column("num_folders", width=80, anchor="center")
     tree_stats.column("num_files", width=80, anchor="center")
     tree_stats.column("num_extension_files", width=140, anchor="center")
-    tree_stats.column("extension_files", width=560, anchor="w")
+    tree_stats.column("extension_files", width=400, anchor="w")
+    tree_stats.column("file_mtimes", width=650, anchor="w")
 
     def update_remote_stats_table():
         """
@@ -73,11 +76,27 @@ def create_frame_preparazione(root, global_config):
             num_folders, num_files, num_ext, ext_files = utils.count_directory_content(
                 folder_path, entry_extension
             )
-            all_file_names = sorted(
-                file_name
-                for _root, _dirs, files in os.walk(folder_path)
-                for file_name in files
-            )
+            # Elenco completo dei file, compresi quelli nelle sottocartelle.
+            # Conserviamo i percorsi relativi per distinguere nomi duplicati.
+            file_details = []
+            for current_root, _dirs, files in os.walk(folder_path):
+                for file_name in files:
+                    full_path = os.path.join(current_root, file_name)
+                    relative_path = os.path.relpath(full_path, folder_path)
+                    try:
+                        modified_at = dt.datetime.fromtimestamp(
+                            os.path.getmtime(full_path)
+                        ).strftime("%d/%m/%Y %H:%M:%S")
+                    except OSError:
+                        modified_at = "non disponibile"
+                    file_details.append((relative_path, modified_at))
+
+            file_details.sort(key=lambda detail: detail[0].lower())
+            all_file_names = [detail[0] for detail in file_details]
+            all_file_mtimes = [
+                "{}: {}".format(detail[0], detail[1])
+                for detail in file_details
+            ]
 
             tree_stats.insert(
                 "",
@@ -88,6 +107,7 @@ def create_frame_preparazione(root, global_config):
                     num_files,
                     num_ext,
                     ", ".join(all_file_names),
+                    "  |  ".join(all_file_mtimes),
                 ),
             )
 
