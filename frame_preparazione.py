@@ -324,11 +324,43 @@ def create_frame_preparazione(root, global_config):
 
     tree_stats.grid(row=4, column=0, columnspan=5, sticky="nsew", padx=8, pady=4)
 
+    # La tabella contiene percorsi e date di molti file: scorrimento orizzontale.
+    table_scroll_x = ttk.Scrollbar(
+        frame, orient="horizontal", command=tree_stats.xview
+    )
+    table_scroll_x.grid(row=5, column=0, columnspan=5, sticky="ew", padx=8)
+    tree_stats.configure(xscrollcommand=table_scroll_x.set)
+
+    def show_file_details(_event=None):
+        """Mostra l'elenco completo dei file e delle date senza troncamenti."""
+        selected = tree_stats.selection()
+        if not selected:
+            return
+        selected_item = selected[0]
+        folder_name = tree_stats.set(selected_item, "subdirectory")
+        details = tree_stats.set(selected_item, "file_mtimes")
+        if not details:
+            details = "Nessun file presente."
+
+        popup = tk.Toplevel(frame)
+        popup.title("File e ultima modifica - " + folder_name)
+        popup.geometry("950x520")
+        content = tk.Text(popup, wrap="none", font=("Consolas", 10))
+        content.pack(side="left", fill="both", expand=True)
+        scroll_y = ttk.Scrollbar(popup, orient="vertical", command=content.yview)
+        scroll_y.pack(side="right", fill="y")
+        content.configure(yscrollcommand=scroll_y.set)
+        for item in details.split("  |  "):
+            content.insert("end", item + "\\n")
+        content.configure(state="disabled")
+
+    tree_stats.bind("<Double-1>", show_file_details)
+
     # ======================================================================
     #  LOG / REPORT (ORA SOTTO LA TABELLA)
     # ======================================================================
     lbl_report = tk.Label(frame, text="Log / Report:", bg=YELLOW_BG)
-    lbl_report.grid(row=5, column=0, sticky="nw", padx=8, pady=4)
+    lbl_report.grid(row=6, column=0, sticky="nw", padx=8, pady=4)
 
     report_text = tk.Text(
         frame,
@@ -337,7 +369,7 @@ def create_frame_preparazione(root, global_config):
         bg="#fffbe6",
     )
     report_text.grid(
-        row=6,
+        row=7,
         column=0,
         columnspan=5,
         sticky="nsew",
@@ -346,7 +378,7 @@ def create_frame_preparazione(root, global_config):
     )
 
     scrollbar = Scrollbar(frame, orient="vertical", command=report_text.yview)
-    scrollbar.grid(row=6, column=5, sticky="ns", pady=4)
+    scrollbar.grid(row=7, column=5, sticky="ns", pady=4)
     report_text.config(yscrollcommand=scrollbar.set)
     utils.enable_mousewheel(report_text)
 
@@ -354,7 +386,7 @@ def create_frame_preparazione(root, global_config):
     #  LAYOUT
     # ======================================================================
     frame.rowconfigure(4, weight=1)  # tabella
-    frame.rowconfigure(6, weight=1)  # log
+    frame.rowconfigure(7, weight=1)  # log
     frame.columnconfigure(1, weight=1)
     frame.columnconfigure(2, weight=1)
     frame.columnconfigure(3, weight=1)
