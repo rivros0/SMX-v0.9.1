@@ -253,6 +253,7 @@ def plot_similarity_matrix(output_directory, report_text=None):
     # Una sola matrice e una sola collezione di matcher alimentano entrambe
     # le viste: cambiare scheda non comporta nuovi confronti tra file.
     from tkinter import ttk
+    from matplotlib.figure import Figure
     from similarity_graph import create_similarity_graph
 
     labels = [
@@ -300,7 +301,8 @@ def plot_similarity_matrix(output_directory, report_text=None):
         open_pair(row, column)
 
     # Matrice originale, ora incorporata in una scheda Tkinter.
-    figure, axes = plt.subplots(figsize=(11, 8))
+    figure = Figure(figsize=(11, 8), dpi=100)
+    axes = figure.add_subplot(111)
     sns.heatmap(
         similarity_matrix,
         annot=True,
@@ -315,9 +317,8 @@ def plot_similarity_matrix(output_directory, report_text=None):
     axes.set_ylabel("Elaborati")
     axes.tick_params(axis="x", labelrotation=45)
     figure.tight_layout()
-    figure.canvas.mpl_connect("button_press_event", on_heatmap_click)
-
     heatmap_canvas = FigureCanvasTkAgg(figure, master=heatmap_tab)
+    heatmap_canvas.mpl_connect("button_press_event", on_heatmap_click)
     heatmap_canvas.draw()
     heatmap_canvas.get_tk_widget().pack(fill="both", expand=True)
 
@@ -327,7 +328,7 @@ def plot_similarity_matrix(output_directory, report_text=None):
     )
 
     def close_analysis_window():
-        plt.close(figure)
+        figure.clear()
         graph_figure.clear()
         window.destroy()
 
