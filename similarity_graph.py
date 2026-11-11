@@ -273,7 +273,10 @@ def create_similarity_graph(parent, files, matrix, labels, open_pair):
     )
     reset_button.pack(side="right", padx=4)
 
-    slider.configure(command=redraw)
+    def on_threshold_change(_value):
+        redraw()
+
+    slider.configure(command=on_threshold_change)
     def _on_filter_change(*_args):
         redraw()
 
