@@ -12,6 +12,7 @@ for env_name, relative in (("TCL_LIBRARY", ("tcl", "tcl8.6")), ("TK_LIBRARY", ("
         os.environ[env_name] = candidate
 
 import data_handler
+from smx_version import APP_VERSION
 from utils import add_tooltip, enable_mousewheel
 from frame_associa import create_frame_associa
 from frame_live import create_frame_live
@@ -54,7 +55,7 @@ EXTENSION_PRESETS = {
 class SMXApplication:
     def __init__(self, root):
         self.root = root
-        root.title("SMX - Gestione elaborati - Versione: 0.9.1")
+        root.title("SMX - Gestione elaborati - Versione: " + APP_VERSION)
         root.geometry("1280x800")
         base_path = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
         icon_path = base_path / "icone" / "app.ico"
@@ -167,7 +168,7 @@ Buona pratica: conserva il file CONSEGNA_….smxSession e la Dir Locale prima di
     def show_about(self):
         messagebox.showinfo(
             "Informazioni su SMX",
-            "SMX – Gestione elaborati\nVersione 0.9.1\n\n"
+            "SMX – Gestione elaborati\nVersione " + APP_VERSION + "\n\n"
             "Gestione di verifiche con raccolta, monitoraggio, consegna e correzione locale.",
         )
 
