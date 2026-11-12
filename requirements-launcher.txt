@@ -1,0 +1,3 @@
+# Keyring utilizza lo store sicuro delle credenziali del sistema, se disponibile.
+keyring>=25,<27
+pyinstaller>=6.10,<7
