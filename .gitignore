@@ -1,3 +1,34 @@
-*.pyc
-/build/*.*
-/dist/*.*
+# Python e ambienti virtuali
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Compilazioni ed eseguibili generati
+build/
+dist/
+release-assets/
+*.spec.bak
+
+# Impostazioni locali e credenziali
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+secrets*.json
+
+# Materiale delle verifiche e copie di lavoro: mai pubblicare
+00_SMXSystem/
+00_SMXHistory/
+00_SMXRecovery/
+00_MixOutput/
+00_Pdf/
+00_DominiFTP/
+test[0-9][0-9]/
+*.smxSession
+smx_project.json
