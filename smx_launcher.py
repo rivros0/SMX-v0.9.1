@@ -108,6 +108,36 @@ def current_version(base):
         return ""
 
 
+def previous_version(base):
+    """Versione avviabile disponibile per un ripristino manuale."""
+    manifest = base / "current.json"
+    if not manifest.is_file():
+        return ""
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        candidate = str(data.get("previous", ""))
+        if candidate and binary_for_version(base, candidate).is_file():
+            return candidate
+    except (OSError, ValueError, TypeError):
+        pass
+    return ""
+
+
+def restore_previous(base):
+    """Ripristina il puntatore senza cancellare né modificare i dati utente."""
+    previous = previous_version(base)
+    if not previous:
+        raise RuntimeError("Non è disponibile una versione precedente valida.")
+    current = current_version(base)
+    temporary = base / "current.json.tmp"
+    temporary.write_text(
+        json.dumps({"version": previous, "previous": current}, indent=2),
+        encoding="utf-8"
+    )
+    os.replace(temporary, base / "current.json")
+    return previous
+
+
 def binary_for_version(base, version):
     spec = platform_asset()
     return base / "versions" / version / pathlib.Path(spec["binary"])
@@ -243,10 +273,15 @@ def install_release(base, release):
                 raise RuntimeError("Eseguibile SMX assente nel pacchetto scaricato.")
             os.replace(staged, destination)
 
+    previous = current_version(base)
+    if previous == version:
+        previous = previous_version(base)
+
     manifest = base / "current.json"
     temporary_manifest = base / "current.json.tmp"
     temporary_manifest.write_text(
-        json.dumps({"version": version}, indent=2), encoding="utf-8"
+        json.dumps({"version": version, "previous": previous}, indent=2),
+        encoding="utf-8"
     )
     os.replace(temporary_manifest, manifest)
     return binary_for_version(base, version)
@@ -267,7 +302,7 @@ def main():
 
     root = tk.Tk()
     root.title("SMX - Avvio e aggiornamenti")
-    root.geometry("600x265")
+    root.geometry("680x295")
     root.resizable(False, False)
     root.configure(bg="#f7f9fc")
 
@@ -296,6 +331,37 @@ def main():
         controls, text="Aggiorna / Installa", width=20, state="disabled"
     )
     update_button.pack(side="left", padx=7)
+    rollback_button = tk.Button(
+        controls, text="Versione precedente", width=19, state="disabled"
+    )
+    rollback_button.pack(side="left", padx=7)
+
+    def refresh_restore_control():
+        if previous_version(base):
+            rollback_button.configure(state="normal")
+        else:
+            rollback_button.configure(state="disabled")
+
+    def on_restore():
+        if state["busy"]:
+            return
+        candidate = previous_version(base)
+        if not candidate:
+            return
+        if not messagebox.askyesno(
+            "Ripristina SMX",
+            "Ripristinare la versione {}? I dati delle verifiche resteranno invariati.".format(
+                candidate
+            ),
+        ):
+            return
+        try:
+            restored = restore_previous(base)
+            version_label.configure(text="Versione installata: " + restored)
+            status.configure(text="Ripristinata la versione " + restored)
+            refresh_restore_control()
+        except (OSError, ValueError, RuntimeError) as error:
+            messagebox.showerror("Ripristino SMX", str(error))
 
     def on_launch():
         executable = local_executable(base)
@@ -368,6 +434,7 @@ def main():
                     status.configure(text="Aggiornamento completato. SMX pronto all'avvio.")
                     launch_button.configure(state="normal")
                     update_button.configure(state="disabled")
+                    refresh_restore_control()
                 elif kind == "install_error":
                     state["busy"] = False
                     status.configure(text="Aggiornamento non riuscito; versione precedente conservata.")
@@ -380,6 +447,8 @@ def main():
 
     launch_button.configure(command=on_launch)
     update_button.configure(command=on_update)
+    rollback_button.configure(command=on_restore)
+    refresh_restore_control()
     if local_executable(base) is None:
         launch_button.configure(state="disabled")
     root.after(150, poll_events)
