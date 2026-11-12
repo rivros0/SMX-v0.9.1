@@ -1,3 +1,2 @@
-# Keyring utilizza lo store sicuro delle credenziali del sistema, se disponibile.
-keyring>=25,<27
+# Il launcher utilizza esclusivamente la libreria standard Python.
 pyinstaller>=6.10,<7
