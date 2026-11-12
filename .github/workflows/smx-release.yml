@@ -4,6 +4,10 @@ on:
   push:
     tags:
       - "v*.*.*"
+    branches:
+      - master
+    paths:
+      - ".github/release-request/**"
   pull_request:
   workflow_dispatch:
 
@@ -65,12 +69,28 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'push' && github.ref == 'refs/heads/master')
     needs: build
     permissions:
       contents: write
     runs-on: ubuntu-22.04
     steps:
+      - name: Checkout release sources
+        uses: actions/checkout@v4
+
+      - name: Check requested release version
+        shell: bash
+        run: |
+          VERSION="$(python -c 'from smx_version import APP_VERSION; print(APP_VERSION)')"
+          echo "SMX_RELEASE_VERSION=${VERSION}" >> "$GITHUB_ENV"
+
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            if [[ "$GITHUB_REF_NAME" != "v${VERSION}" ]]; then
+              echo "The Git tag does not match smx_version.py" >&2
+              exit 1
+            fi
+          fi
+
       - name: Download Windows build
         uses: actions/download-artifact@v4
         with:
@@ -92,4 +112,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" release-assets/* --title "SMX ${GITHUB_REF_NAME}" --generate-notes --verify-tag
+          TAG="v${SMX_RELEASE_VERSION}"
+
+          # Tag triggers keep their existing tag; a release-request push
+          # creates the missing tag at the exact tested commit.
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            gh release create "$TAG" release-assets/* --title "SMX $TAG" --generate-notes --verify-tag
+          else
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              echo "Release $TAG already exists: refusing to overwrite assets." >&2
+              exit 1
+            fi
+            gh release create "$TAG" release-assets/* --title "SMX $TAG" --generate-notes --target "$GITHUB_SHA"
+          fi
