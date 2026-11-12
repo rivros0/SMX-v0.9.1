@@ -1,0 +1,95 @@
+name: Build and publish SMX
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            runner: windows-2022
+            artifact: smx-windows
+          - name: Linux x64
+            runner: ubuntu-22.04
+            artifact: smx-linux
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-build.txt
+
+      - name: Validate version tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: python
+        run: |
+          import os
+          from smx_version import APP_VERSION
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          expected = "v" + APP_VERSION
+          if tag != expected:
+              raise SystemExit("Version mismatch: tag {} != {}".format(tag, expected))
+
+      - name: Compile standalone packages
+        run: python build_release.py
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            release-assets/SMX*
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: smx-windows
+          path: release-assets
+
+      - name: Download Linux build
+        uses: actions/download-artifact@v4
+        with:
+          name: smx-linux
+          path: release-assets
+
+      - name: Generate cross-platform SHA256SUMS
+        working-directory: release-assets
+        run: |
+          sha256sum SMX-windows-x64.zip SMX-linux-x64.tar.gz SMX-Launcher.exe SMX-Launcher > SHA256SUMS.txt
+
+      - name: Publish release with verified assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" release-assets/* --title "SMX ${GITHUB_REF_NAME}" --generate-notes --verify-tag

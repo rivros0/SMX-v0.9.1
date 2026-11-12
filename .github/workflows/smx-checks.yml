@@ -1,0 +1,30 @@
+name: SMX checks
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  source-checks:
+    name: Syntax and launcher tests
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python syntax checks
+        run: |
+          python -m compileall -q SMX.py smx_version.py launcher_config.py smx_launcher.py build_release.py
+          python -m compileall -q frame_preparazione.py similarity.py similarity_graph.py
+
+      - name: Launcher unit tests
+        run: python -m unittest -v test_smx_launcher.py

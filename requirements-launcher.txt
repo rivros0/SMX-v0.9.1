@@ -1,0 +1,2 @@
+# Il launcher utilizza esclusivamente la libreria standard Python.
+pyinstaller>=6.10,<7
